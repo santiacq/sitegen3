@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>dotmgr — your name</title>
+  <title>nota — your name</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -17,69 +17,240 @@
 <main>
   <article>
     <header class="post-header">
-      <span class="tags">go · cli · open source</span>
-      <h1>dotmgr</h1>
+      <span class="tags">go · cli · sqlite</span>
+      <h1>nota</h1>
     </header>
 
     <div class="project-links">
-      <a href="#">github</a> · <a href="#">docs</a> · <a href="#">install</a>
+      <a href="#">github</a> · <a href="#">releases</a>
     </div>
 
     <div class="post-body">
       <p>
-        A minimal dotfile manager written in Go. It symlinks your config files
-        from a central repo into the right places, supports basic templating,
-        and does nothing else.
+        A command-line note-taking tool that stores everything in a single
+        SQLite database. Notes are written in Markdown, full-text search is
+        built in, and the entire state lives in one portable file you can
+        back up with <code>cp</code>.
       </p>
 
-      <h2>why</h2>
+      <h2>motivation</h2>
 
       <p>
-        I tried GNU Stow, chezmoi, and yadm. They all worked, but each came
-        with tradeoffs I didn't love. Stow doesn't do templates. Chezmoi
-        does too much. Yadm uses a bare git repo which makes me nervous.
+        I used to keep notes in plain files. That worked until I had enough
+        of them that finding things became slow and unreliable. I tried a
+        few dedicated apps — <del>Notion</del>, <del>Obsidian</del>,
+        <del>Logseq</del> — and bounced off all of them for the same reason:
+        they put <em>their</em> structure on top of <em>my</em> notes.
       </p>
 
       <p>
-        I wanted something in between: symlinks plus simple variable
-        substitution, in a single binary with no dependencies.
+        <strong>nota</strong> has no structure beyond a flat list of entries.
+        It gets out of the way.
       </p>
 
-      <h2>how it works</h2>
+      <h2>features</h2>
+
+      <ul>
+        <li>Write notes in Markdown — rendered in the terminal with color</li>
+        <li>Full-text search across all notes using SQLite FTS5</li>
+        <li>Tag notes and filter by tag</li>
+        <li>Open any note in <code>$EDITOR</code> for longer edits</li>
+        <li>Export to HTML, plain text, or JSON</li>
+        <li>Single binary, no config required</li>
+      </ul>
+
+      <h2>quick start</h2>
+
+      <h3>installation</h3>
+
+      <p>Download the binary for your platform from the releases page, or build from source:</p>
+
+      <pre><code>git clone https://github.com/you/nota
+cd nota
+go build -o nota ./cmd/nota
+sudo mv nota /usr/local/bin/</code></pre>
+
+      <h3>first steps</h3>
+
+      <ol>
+        <li>
+          Add a note: <code>nota add "first thought"</code>
+        </li>
+        <li>
+          Add a longer note in your editor: <code>nota edit</code>
+        </li>
+        <li>
+          Search: <code>nota search "first"</code>
+        </li>
+        <li>
+          List recent notes: <code>nota ls</code>
+        </li>
+      </ol>
+
+      <blockquote>
+        <p>
+          By default, nota stores the database at
+          <code>~/.local/share/nota/notes.db</code>. Set the
+          <code>NOTA_DB</code> environment variable to use a different path.
+        </p>
+      </blockquote>
+
+      <h2>usage</h2>
+
+      <h3>adding notes</h3>
+
+      <pre><code># Quick one-liner
+nota add "meeting with team at 3pm"
+
+# With tags
+nota add --tag work --tag meeting "sync with design team"
+
+# Open editor for a longer note
+nota edit</code></pre>
+
+      <h3>searching</h3>
+
+      <pre><code># Full-text search
+nota search "sqlite performance"
+
+# Filter by tag
+nota ls --tag work
+
+# Search within a tag
+nota search --tag work "meeting"</code></pre>
+
+      <h3>example output</h3>
+
+      <pre><code>$ nota search "sqlite"
+#42  2026-03-14  [work, research]
+SQLite is surprisingly capable for this use case. FTS5 is fast enough
+that I don't need a dedicated search index for my notes collection.
+
+#38  2026-02-28  [dev]
+Looked into sqlite-vec for vector search. The API is clean but the
+serialization format for float32 arrays is not obvious from the docs.</code></pre>
+
+      <h2>configuration</h2>
 
       <p>
-        You keep your dotfiles in a directory. Each subdirectory maps to
-        a target location. A simple YAML file defines variables and
-        any overrides.
+        nota reads a config file at <code>~/.config/nota/config.toml</code>
+        if it exists. All fields are optional.
       </p>
 
-      <pre><code># dotmgr.yml
-target: ~/.config
-vars:
-  editor: nvim
-  theme: gruvbox
+      <table>
+        <thead>
+          <tr>
+            <th>Key</th>
+            <th>Type</th>
+            <th>Default</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>db</code></td>
+            <td>string</td>
+            <td><code>~/.local/share/nota/notes.db</code></td>
+            <td>Path to the SQLite database</td>
+          </tr>
+          <tr>
+            <td><code>editor</code></td>
+            <td>string</td>
+            <td><code>$EDITOR</code></td>
+            <td>Editor to open for <code>nota edit</code></td>
+          </tr>
+          <tr>
+            <td><code>pager</code></td>
+            <td>string</td>
+            <td><code>less -R</code></td>
+            <td>Pager for long output</td>
+          </tr>
+          <tr>
+            <td><code>color</code></td>
+            <td>bool</td>
+            <td><code>true</code></td>
+            <td>Enable terminal color output</td>
+          </tr>
+          <tr>
+            <td><code>date_format</code></td>
+            <td>string</td>
+            <td><code>2006-01-02</code></td>
+            <td>Go time format for displaying dates</td>
+          </tr>
+        </tbody>
+      </table>
 
-ignore:
-  - "*.bak"
-  - ".DS_Store"</code></pre>
+      <h4>example config</h4>
+
+      <pre><code># ~/.config/nota/config.toml
+db     = "~/Dropbox/nota.db"
+editor = "nvim"
+color  = true</code></pre>
+
+      <hr>
+
+      <h2>design decisions</h2>
+
+      <h3>why SQLite</h3>
 
       <p>
-        Files ending in <code>.tmpl</code> are processed as Go templates
-        before symlinking. Everything else is linked as-is.
+        The entire state is one file. Backups are trivial. Corruption is
+        recoverable. FTS5 is fast and built in. There is no server to run or
+        daemon to keep alive. <em>SQLite is boring in the best possible way.</em>
       </p>
 
-      <pre><code>$ dotmgr link
-  ~/.config/nvim/init.lua → dotfiles/nvim/init.lua
-  ~/.config/alacritty/alacritty.toml → dotfiles/alacritty/alacritty.toml.tmpl
-  ~/.config/git/config → dotfiles/git/config
-  3 files linked, 0 errors</code></pre>
+      <h3>why not a file-per-note approach</h3>
+
+      <p>
+        Files are fine for small collections but fall apart for search. The
+        options are:
+      </p>
+
+      <ul>
+        <li>
+          <strong>grep</strong> — fast, exact match only; misses semantically
+          related notes
+        </li>
+        <li>
+          <strong>Ripgrep</strong> — faster grep, same limitation
+        </li>
+        <li>
+          <strong>External indexer</strong> (Meilisearch, Typesense) — good
+          search, but now you have a server to run
+        </li>
+        <li>
+          <strong>SQLite FTS5</strong> — full-text search built into the same
+          file as the data; no moving parts
+        </li>
+      </ul>
+
+      <blockquote>
+        <p>
+          Every tool you don't have to run is one less thing that can break
+          at 11pm when you just want to find a note.
+        </p>
+      </blockquote>
 
       <h2>status</h2>
 
       <p>
-        Stable and feature-complete for my needs. I use it daily across
-        two machines. PRs welcome if you find a bug, but I'm not planning
-        to add major features.
+        Stable. I've been using nota daily for about a year. The database
+        has ~3,000 entries and search is still instant.
+      </p>
+
+      <p>
+        The core feature set is complete. Future work, if any, will be
+        small quality-of-life improvements:
+      </p>
+
+      <ul>
+        <li>Better terminal rendering for tables in Markdown</li>
+        <li>An <code>import</code> command for bulk-loading plain text files</li>
+      </ul>
+
+      <p>
+        PRs welcome for bugs. Open an issue before starting on a new feature —
+        the goal of this project is to stay <strong>small</strong>.
       </p>
     </div>
 

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Why I switched to Neovim (again) — your name</title>
+  <title>Building a personal search engine — your name</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -18,62 +18,275 @@
   <article>
     <header class="post-header">
       <span class="date">2026-03-15</span>
-      <h1>Why I switched to Neovim (again)</h1>
+      <h1>Building a personal search engine</h1>
     </header>
 
     <div class="post-body">
       <p>
-        Every couple of years I end up back here. I try VS Code, I try Zed,
-        I try whatever the new thing is. And every time I come back to Neovim.
-        This time I think I understand why.
+        I've been keeping notes for about ten years. Plain text files, scattered
+        across machines, synced imperfectly. At some point the collection became
+        large enough that I couldn't find things anymore. So I built a search
+        engine for it — and learned more than I expected about how search
+        actually works.
       </p>
 
-      <h2>The problem with GUIs</h2>
+      <h2>The problem with grep</h2>
 
       <p>
-        It's not that graphical editors are bad. They're fine. But there's a
-        friction I can never shake — the mouse. Every time my hand leaves the
-        keyboard, I lose a small thread of thought. Over a full day, that adds up.
+        The obvious first tool is <code>grep</code>. It works until it doesn't.
+        The failure mode is always the same: you <em>know</em> you wrote something
+        down, you can feel the shape of the thought, but you can't remember
+        the exact words you used. <code>grep</code> requires you to already know
+        what you're looking for.
       </p>
+
+      <blockquote>
+        <p>
+          A search engine is useful precisely when your memory has failed.
+          If you remembered the words, you wouldn't need to search.
+        </p>
+      </blockquote>
 
       <p>
-        I know you can use Vim keybindings in VS Code. I've tried. It's not the
-        same. The emulation is always slightly off, and the mental model doesn't
-        fully transfer.
+        Full-text search solves the exact-match problem. But semantic search —
+        matching by <em>meaning</em> rather than string — is what I actually
+        needed. That means embeddings.
       </p>
 
-      <h2>What changed this time</h2>
+      <h2>How embeddings work</h2>
 
       <p>
-        Two things made the difference: <code>lazy.nvim</code> for plugin
-        management and the LSP ecosystem finally being mature. Setting up
-        a working config used to take a weekend. Now it takes an hour.
+        An embedding model maps a chunk of text to a point in high-dimensional
+        space. Texts with similar meaning end up close together. The key insight
+        is that you can embed both your <strong>documents</strong> and your
+        <strong>query</strong> into the same space, then find the nearest
+        neighbors.
       </p>
+
+      <h3>Chunking strategy</h3>
 
       <p>
-        Here's the core of my config:
+        Before embedding anything, you need to decide how to split your documents.
+        The options, roughly in order of sophistication:
       </p>
 
-      <pre><code>-- init.lua (simplified)
-vim.g.mapleader = " "
-
-require("lazy").setup({
-  "neovim/nvim-lspconfig",
-  "nvim-telescope/telescope.nvim",
-  "nvim-treesitter/nvim-treesitter",
-})</code></pre>
+      <ol>
+        <li>
+          <strong>Fixed-size chunks</strong> — split every N characters.
+          Simple, but cuts across sentence boundaries.
+        </li>
+        <li>
+          <strong>Sentence-based chunks</strong> — split on punctuation.
+          Better for prose, breaks down for code.
+        </li>
+        <li>
+          <strong>Paragraph-based chunks</strong> — split on blank lines.
+          Works well for notes; this is what I use.
+        </li>
+        <li>
+          <strong>Semantic chunking</strong> — use a model to find natural
+          topic boundaries. High quality, high cost.
+        </li>
+      </ol>
 
       <p>
-        That's it. Three plugins and you have fuzzy finding, syntax highlighting,
-        and language server support. Everything else is optional.
+        I went with paragraph-based chunking. Notes are already written in
+        paragraphs; it felt right to respect that structure.
       </p>
 
-      <h2>Will I switch again?</h2>
+      <h3>Choosing a model</h3>
 
       <p>
-        Probably. But for now this setup feels right. It's fast, it's minimal,
-        and it stays out of my way. That's all I really want from an editor.
+        I compared three embedding models on a sample of my notes:
       </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Model</th>
+            <th>Dimensions</th>
+            <th>Speed</th>
+            <th>Quality</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>all-MiniLM-L6-v2</code></td>
+            <td>384</td>
+            <td>fast</td>
+            <td>good</td>
+          </tr>
+          <tr>
+            <td><code>nomic-embed-text</code></td>
+            <td>768</td>
+            <td>medium</td>
+            <td>very good</td>
+          </tr>
+          <tr>
+            <td><del><code>text-embedding-3-large</code></del></td>
+            <td>3072</td>
+            <td>API call</td>
+            <td>best</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        I ruled out <code>text-embedding-3-large</code> immediately — I want
+        this to run offline. <code>nomic-embed-text</code> runs locally via
+        Ollama and the quality difference over MiniLM was noticeable enough
+        to justify the slower indexing time.
+      </p>
+
+      <h2>The index</h2>
+
+      <p>
+        Once you have embeddings, you need a way to query them. The brute-force
+        approach — compute cosine similarity against every vector on every query
+        — is fine up to about 100k chunks. Beyond that, you want an approximate
+        nearest-neighbor index.
+      </p>
+
+      <p>I tried two options:</p>
+
+      <ul>
+        <li>
+          <strong>FAISS</strong> — Facebook's library, very fast, C++ under the
+          hood, slightly awkward Python bindings
+        </li>
+        <li>
+          <strong>SQLite + sqlite-vec</strong> — a vector extension for SQLite;
+          slower than FAISS but the whole index is a single file I can copy
+          around
+        </li>
+      </ul>
+
+      <p>
+        I chose SQLite. My notes collection is around 40k chunks — well within
+        the range where the performance difference doesn't matter, and having a
+        portable single-file index is worth a lot.
+      </p>
+
+      <h3>Schema</h3>
+
+      <pre><code>CREATE TABLE chunks (
+  id      INTEGER PRIMARY KEY,
+  path    TEXT NOT NULL,
+  mtime   INTEGER NOT NULL,
+  content TEXT NOT NULL
+);
+
+CREATE VIRTUAL TABLE chunk_vss USING vec0(
+  embedding FLOAT[768]
+);</code></pre>
+
+      <h3>Indexing a file</h3>
+
+      <pre><code>def index_file(path: str, conn: sqlite3.Connection) -> int:
+    mtime = os.path.getmtime(path)
+    text = open(path).read()
+    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+
+    indexed = 0
+    for para in paragraphs:
+        embedding = embed(para)  # returns list[float]
+        conn.execute(
+            "INSERT INTO chunks (path, mtime, content) VALUES (?, ?, ?)",
+            (path, mtime, para),
+        )
+        chunk_id = conn.lastrowid
+        conn.execute(
+            "INSERT INTO chunk_vss (rowid, embedding) VALUES (?, ?)",
+            (chunk_id, serialize_float32(embedding)),
+        )
+        indexed += 1
+
+    return indexed</code></pre>
+
+      <h2>Querying</h2>
+
+      <p>
+        The query path is straightforward: embed the query string, find the
+        <em>k</em> nearest vectors, return the corresponding chunks with their
+        source files.
+      </p>
+
+      <pre><code>def search(query: str, k: int = 10) -> list[dict]:
+    q_embedding = embed(query)
+    rows = conn.execute("""
+        SELECT c.path, c.content, v.distance
+        FROM chunk_vss v
+        JOIN chunks c ON c.id = v.rowid
+        WHERE v.embedding MATCH ?
+          AND k = ?
+        ORDER BY v.distance
+    """, (serialize_float32(q_embedding), k)).fetchall()
+    return [{"path": r[0], "content": r[1], "score": r[2]} for r in rows]</code></pre>
+
+      <h4>A note on scoring</h4>
+
+      <p>
+        The distance returned by sqlite-vec is L2 distance in the embedding
+        space, not cosine similarity. For normalized vectors these are equivalent,
+        but <code>nomic-embed-text</code> does not normalize by default. I added
+        an explicit normalization step after embedding:
+      </p>
+
+      <pre><code>import numpy as np
+
+def embed(text: str) -> list[float]:
+    raw = model.encode(text)
+    norm = raw / np.linalg.norm(raw)
+    return norm.tolist()</code></pre>
+
+      <h2>The interface</h2>
+
+      <p>
+        I considered building a web UI but didn't want to run a server. The
+        interface is a small terminal program: type a query, get back a ranked
+        list of excerpts with file paths. Press <code>Enter</code> on a result
+        to open the file at the relevant line in <code>$EDITOR</code>.
+      </p>
+
+      <blockquote>
+        <p>
+          The right interface for a tool is the one you'll actually use.
+          I live in the terminal, so the terminal is right.
+        </p>
+      </blockquote>
+
+      <h2>What I learned</h2>
+
+      <p>
+        A few things surprised me building this:
+      </p>
+
+      <ul>
+        <li>
+          Chunking matters more than the model. Bad chunking with a good model
+          produces worse results than good chunking with a mediocre model.
+        </li>
+        <li>
+          Incremental indexing is worth building from the start. Re-indexing
+          40k chunks takes several minutes; skipping unchanged files (via
+          <code>mtime</code>) brings that to seconds.
+        </li>
+        <li>
+          The hardest part wasn't the search — it was deciding <em>what</em>
+          to put in the index. I ended up excluding meeting notes and
+          todo lists entirely.
+        </li>
+      </ul>
+
+      <hr>
+
+      <h2>Further reading</h2>
+
+      <ul>
+        <li><a href="#">sqlite-vec documentation</a></li>
+        <li><a href="#">nomic-embed-text model card</a></li>
+        <li><a href="#">Sentence Transformers library</a></li>
+      </ul>
     </div>
 
     <footer class="post-footer">
