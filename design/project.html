@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>dotmgr — your name</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav>
+  <a href="index.html">about</a>
+  <a href="posts.html">posts</a>
+  <a href="projects.html" class="active">projects</a>
+</nav>
+
+<main>
+  <article>
+    <header class="post-header">
+      <span class="tags">go · cli · open source</span>
+      <h1>dotmgr</h1>
+    </header>
+
+    <div class="project-links">
+      <a href="#">github</a> · <a href="#">docs</a> · <a href="#">install</a>
+    </div>
+
+    <div class="post-body">
+      <p>
+        A minimal dotfile manager written in Go. It symlinks your config files
+        from a central repo into the right places, supports basic templating,
+        and does nothing else.
+      </p>
+
+      <h2>why</h2>
+
+      <p>
+        I tried GNU Stow, chezmoi, and yadm. They all worked, but each came
+        with tradeoffs I didn't love. Stow doesn't do templates. Chezmoi
+        does too much. Yadm uses a bare git repo which makes me nervous.
+      </p>
+
+      <p>
+        I wanted something in between: symlinks plus simple variable
+        substitution, in a single binary with no dependencies.
+      </p>
+
+      <h2>how it works</h2>
+
+      <p>
+        You keep your dotfiles in a directory. Each subdirectory maps to
+        a target location. A simple YAML file defines variables and
+        any overrides.
+      </p>
+
+      <pre><code># dotmgr.yml
+target: ~/.config
+vars:
+  editor: nvim
+  theme: gruvbox
+
+ignore:
+  - "*.bak"
+  - ".DS_Store"</code></pre>
+
+      <p>
+        Files ending in <code>.tmpl</code> are processed as Go templates
+        before symlinking. Everything else is linked as-is.
+      </p>
+
+      <pre><code>$ dotmgr link
+  ~/.config/nvim/init.lua → dotfiles/nvim/init.lua
+  ~/.config/alacritty/alacritty.toml → dotfiles/alacritty/alacritty.toml.tmpl
+  ~/.config/git/config → dotfiles/git/config
+  3 files linked, 0 errors</code></pre>
+
+      <h2>status</h2>
+
+      <p>
+        Stable and feature-complete for my needs. I use it daily across
+        two machines. PRs welcome if you find a bug, but I'm not planning
+        to add major features.
+      </p>
+    </div>
+
+    <footer class="post-footer">
+      <a href="projects.html">&larr; back to projects</a>
+    </footer>
+  </article>
+</main>
+
+<footer>
+  <p>&copy; 2026 your name</p>
+</footer>
+
+</body>
+</html>

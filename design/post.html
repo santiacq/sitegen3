@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Why I switched to Neovim (again) — your name</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav>
+  <a href="index.html">about</a>
+  <a href="posts.html" class="active">posts</a>
+  <a href="projects.html">projects</a>
+</nav>
+
+<main>
+  <article>
+    <header class="post-header">
+      <span class="date">2026-03-15</span>
+      <h1>Why I switched to Neovim (again)</h1>
+    </header>
+
+    <div class="post-body">
+      <p>
+        Every couple of years I end up back here. I try VS Code, I try Zed,
+        I try whatever the new thing is. And every time I come back to Neovim.
+        This time I think I understand why.
+      </p>
+
+      <h2>The problem with GUIs</h2>
+
+      <p>
+        It's not that graphical editors are bad. They're fine. But there's a
+        friction I can never shake — the mouse. Every time my hand leaves the
+        keyboard, I lose a small thread of thought. Over a full day, that adds up.
+      </p>
+
+      <p>
+        I know you can use Vim keybindings in VS Code. I've tried. It's not the
+        same. The emulation is always slightly off, and the mental model doesn't
+        fully transfer.
+      </p>
+
+      <h2>What changed this time</h2>
+
+      <p>
+        Two things made the difference: <code>lazy.nvim</code> for plugin
+        management and the LSP ecosystem finally being mature. Setting up
+        a working config used to take a weekend. Now it takes an hour.
+      </p>
+
+      <p>
+        Here's the core of my config:
+      </p>
+
+      <pre><code>-- init.lua (simplified)
+vim.g.mapleader = " "
+
+require("lazy").setup({
+  "neovim/nvim-lspconfig",
+  "nvim-telescope/telescope.nvim",
+  "nvim-treesitter/nvim-treesitter",
+})</code></pre>
+
+      <p>
+        That's it. Three plugins and you have fuzzy finding, syntax highlighting,
+        and language server support. Everything else is optional.
+      </p>
+
+      <h2>Will I switch again?</h2>
+
+      <p>
+        Probably. But for now this setup feels right. It's fast, it's minimal,
+        and it stays out of my way. That's all I really want from an editor.
+      </p>
+    </div>
+
+    <footer class="post-footer">
+      <a href="posts.html">&larr; back to posts</a>
+    </footer>
+  </article>
+</main>
+
+<footer>
+  <p>&copy; 2026 your name</p>
+</footer>
+
+</body>
+</html>

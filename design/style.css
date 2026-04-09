@@ -1,0 +1,240 @@
+/* ── reset ── */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* ── base ── */
+:root {
+  --bg: #111;
+  --fg: #ccc;
+  --fg-dim: #777;
+  --accent: #5fba7d;
+  --accent-dim: #3a7a52;
+  --border: #333;
+  --max-width: 640px;
+}
+
+html {
+  font-size: 16px;
+}
+
+body {
+  font-family: "IBM Plex Mono", "Fira Code", "SF Mono", "Menlo", monospace;
+  background: var(--bg);
+  color: var(--fg);
+  line-height: 1.7;
+  padding: 2rem 1.5rem;
+  max-width: var(--max-width);
+  margin: 0 auto;
+}
+
+/* ── nav ── */
+nav {
+  margin-bottom: 3rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 1.5rem;
+}
+
+nav a {
+  color: var(--fg-dim);
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+nav a:hover {
+  color: var(--accent);
+}
+
+nav a.active {
+  color: var(--accent);
+}
+
+/* ── typography ── */
+h1 {
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--fg);
+  margin-bottom: 0.25rem;
+}
+
+h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--fg-dim);
+  margin-bottom: 0.75rem;
+  margin-top: 2.5rem;
+}
+
+.subtitle {
+  color: var(--fg-dim);
+  font-size: 0.9rem;
+  margin-bottom: 2rem;
+}
+
+p {
+  margin-bottom: 1rem;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* ── lists ── */
+ul.links {
+  list-style: none;
+}
+
+ul.links li {
+  margin-bottom: 0.4rem;
+}
+
+ul.links li::before {
+  content: "→ ";
+  color: var(--fg-dim);
+}
+
+/* ── post list ── */
+.post-list {
+  list-style: none;
+}
+
+.post-list li {
+  margin-bottom: 1.5rem;
+}
+
+.post-list .date {
+  color: var(--fg-dim);
+  font-size: 0.8rem;
+  display: block;
+  margin-bottom: 0.15rem;
+}
+
+.post-list a {
+  font-size: 1rem;
+}
+
+/* ── project list ── */
+.project {
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.project:last-child {
+  border-bottom: none;
+}
+
+.project h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+}
+
+.project h3 a {
+  color: var(--fg);
+}
+
+.project h3 a:hover {
+  color: var(--accent);
+}
+
+.project p {
+  font-size: 0.9rem;
+  color: var(--fg-dim);
+  margin-bottom: 0.4rem;
+}
+
+.project .tags {
+  font-size: 0.8rem;
+  color: var(--accent-dim);
+}
+
+/* ── article header ── */
+.post-header {
+  margin-bottom: 2rem;
+}
+
+.post-header .date,
+.post-header .tags {
+  color: var(--fg-dim);
+  font-size: 0.8rem;
+  display: block;
+  margin-bottom: 0.4rem;
+}
+
+.post-header .tags {
+  color: var(--accent-dim);
+}
+
+/* ── article body ── */
+.post-body {
+  margin-bottom: 2rem;
+}
+
+/* ── code ── */
+code {
+  font-family: inherit;
+  background: #1a1a1a;
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.9em;
+  color: var(--accent);
+}
+
+pre {
+  background: #1a1a1a;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1rem 1.2rem;
+  overflow-x: auto;
+  margin-bottom: 1.2rem;
+  line-height: 1.5;
+}
+
+pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: 0.85rem;
+  color: var(--fg);
+}
+
+/* ── project detail links ── */
+.project-links {
+  margin-bottom: 2rem;
+  font-size: 0.9rem;
+  color: var(--fg-dim);
+}
+
+/* ── article footer ── */
+.post-footer {
+  margin-top: 3rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+
+/* ── footer ── */
+footer {
+  margin-top: 4rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.8rem;
+  color: var(--fg-dim);
+}
+
+/* ── responsive ── */
+@media (max-width: 480px) {
+  body {
+    padding: 1.5rem 1rem;
+  }
+}
