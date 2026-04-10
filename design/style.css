@@ -45,6 +45,19 @@ nav a {
   font-size: 0.9rem;
 }
 
+nav .site-title {
+  color: var(--accent);
+  font-size: 1rem;
+  font-weight: 600;
+  margin-right: auto;
+  cursor: default;
+}
+
+nav .site-title:hover {
+  color: var(--accent);
+  text-decoration: none;
+}
+
 nav a:hover {
   color: var(--accent);
 }
