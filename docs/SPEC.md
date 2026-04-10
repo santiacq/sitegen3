@@ -2,7 +2,7 @@
 
 ## Overview
 
-`sitegen3` is a static website generator for a personal website. It takes structured Markdown content as input and produces a complete static site (HTML, CSS, and assets) as output.
+`sitegen3` is a static website generator for a personal website. It takes structured Markdown content, assets, and a configuration file as input and produces a complete static site (HTML, CSS, and assets) as output.
 
 The generated site has three sections:
 - **About** — a single page with a bio and social links
@@ -163,64 +163,91 @@ Slugs are derived directly from the Markdown filename (without the `.md` extensi
 
 ## CLI Interface
 
-The tool is invoked as `sitegen3` with two subcommands.
+The tool is invoked as `sitegen3` with three subcommands. Each command accepts an optional `DIR` positional argument — the site root directory where `sitegen3.toml` lives. If omitted, the current working directory is used. Input and output paths are always read from the config file inside that directory.
+
+### Top-level help
+
+```
+$ sitegen3 --help
+Usage: sitegen3 [OPTIONS] COMMAND [ARGS]...
+
+  Static site generator for sitegen3.
+
+Options:
+  --help  Show this message and exit.
+
+Commands:
+  build  Build the site from content sources.
+  init   Scaffold a new site in the given directory.
+  serve  Serve the output directory over HTTP.
+```
 
 ### `sitegen3 build`
 
-Reads content from the input directory, renders all pages, and writes the output.
-
 ```
-sitegen3 build [--input DIR] [--output DIR]
+$ sitegen3 build --help
+Usage: sitegen3 build [OPTIONS] [DIR]
+
+  Build the site from content sources.
+
+  Looks for sitegen3.toml in DIR to determine the input and output
+  directories, then renders all Markdown content into HTML and copies assets
+  to the output directory. DIR defaults to the current working directory.
+
+Arguments:
+  [DIR]  Site root directory containing sitegen3.toml.  [default: .]
+
+Options:
+  --help  Show this message and exit.
 ```
-
-| Flag | Default | Description |
-|---|---|---|
-| `--input DIR` | `paths.input` from config | Input content directory |
-| `--output DIR` | `paths.output` from config | Output directory |
-
-CLI flags override values from `sitegen.toml`.
 
 ### `sitegen3 serve`
 
-Serves a directory as a static file server for local preview.
-
 ```
-sitegen3 serve [--dir DIR] [--port PORT]
+$ sitegen3 serve --help
+Usage: sitegen3 serve [OPTIONS] [DIR]
+
+  Serve the output directory over HTTP.
+
+  Looks for sitegen3.toml in DIR to determine which directory to serve.
+  Starts a simple static file server for local preview. Does not watch for
+  changes or reload the browser — to preview an updated build, run
+  'sitegen3 build' and then restart this command. DIR defaults to the
+  current working directory.
+
+Arguments:
+  [DIR]  Site root directory containing sitegen3.toml.  [default: .]
+
+Options:
+  --port PORT  Port to listen on.  [default: 8000]
+  --help       Show this message and exit.
 ```
-
-| Flag | Default | Description |
-|---|---|---|
-| `--dir DIR` | `paths.output` from config | Directory to serve |
-| `--port PORT` | `8000` | Port to listen on |
-
-The server is a simple HTTP file server — no watching, no auto-reload. To preview changes, run `sitegen3 build` and then restart `sitegen3 serve`.
 
 ### `sitegen3 init`
 
-Scaffolds a new site in the current directory.
-
 ```
-sitegen3 init
-```
+$ sitegen3 init --help
+Usage: sitegen3 init [OPTIONS] [DIR]
 
-Creates the following files and directories (skips any that already exist):
+  Scaffold a new site in the given directory.
 
-```
-sitegen.toml          # pre-filled with placeholder values
-content/
-  about.md            # stub about page with empty frontmatter
-  posts/              # empty directory
-  projects/           # empty directory
-assets/               # empty directory
-```
+  Creates sitegen3.toml pre-filled with placeholder values, and the expected
+  input directory structure (content/, assets/) inside DIR. Fails with an
+  error if sitegen3.toml already exists to avoid overwriting an existing
+  site. DIR defaults to the current working directory.
 
-No flags. Fails with a clear error if `sitegen.toml` already exists, to avoid overwriting an existing site.
+Arguments:
+  [DIR]  Directory to initialise.  [default: .]
+
+Options:
+  --help  Show this message and exit.
+```
 
 ---
 
 ## Configuration
 
-The configuration file `sitegen.toml` must be present in the working directory when running any command.
+The configuration file `sitegen3.toml` must be present in the working directory when running any command.
 
 ```toml
 [site]
