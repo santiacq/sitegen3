@@ -195,6 +195,27 @@ sitegen3 serve [--dir DIR] [--port PORT]
 
 The server is a simple HTTP file server — no watching, no auto-reload. To preview changes, run `sitegen3 build` and then restart `sitegen3 serve`.
 
+### `sitegen3 init`
+
+Scaffolds a new site in the current directory.
+
+```
+sitegen3 init
+```
+
+Creates the following files and directories (skips any that already exist):
+
+```
+sitegen.toml          # pre-filled with placeholder values
+content/
+  about.md            # stub about page with empty frontmatter
+  posts/              # empty directory
+  projects/           # empty directory
+assets/               # empty directory
+```
+
+No flags. Fails with a clear error if `sitegen.toml` already exists, to avoid overwriting an existing site.
+
 ---
 
 ## Configuration
