@@ -82,6 +82,13 @@ h2 {
   margin-top: 2.5rem;
 }
 
+.greeting {
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--fg);
+  margin-bottom: 1.5rem;
+}
+
 .subtitle {
   color: var(--fg-dim);
   font-size: 0.9rem;
@@ -365,6 +372,7 @@ footer {
   border-top: 1px solid var(--border);
   font-size: 0.8rem;
   color: var(--fg-dim);
+  text-align: center;
 }
 
 /* ── responsive ── */
