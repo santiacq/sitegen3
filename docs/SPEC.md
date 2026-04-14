@@ -46,7 +46,7 @@ static/               # framework-level files (style.css) — copied to output r
 - `about.md` is a special reserved file for the about page.
 - Files in `posts/` and `projects/` each produce one page. The filename (without `.md`) becomes the URL slug.
 - The `assets/` subdirectory inside `<input_dir>` is copied as-is to the output.
-- The `static/` directory is always at the site root (not configurable). Its contents are copied to the output root.
+- The `static/` directory is always at the site root (not configurable); this is intentional to keep the project structure predictable. Its contents are copied to the output root.
 
 ### Frontmatter Format
 
@@ -103,6 +103,7 @@ Post body in Markdown.
 | `title` | string | Yes | Post title |
 | `created_at` | date (`YYYY-MM-DD`) | Yes | Publication date, used for display and sort order |
 | `updated_at` | date (`YYYY-MM-DD`) | No | Last updated date |
+| `draft` | boolean | No | If `true`, the page is skipped during build (default: `false`) |
 
 #### Projects (`projects/*.md`)
 
@@ -110,6 +111,8 @@ Post body in Markdown.
 +++
 title = "My Project"
 description = "A short one-line description."
+created_at = 2024-03-15
+updated_at = 2024-04-01
 tags = ["python", "cli"]
 
 [[links]]
@@ -128,8 +131,11 @@ Project description in Markdown.
 |---|---|---|---|
 | `title` | string | Yes | Project name |
 | `description` | string | Yes | Short summary shown in the project listing |
+| `created_at` | date (`YYYY-MM-DD`) | Yes | Creation date, used for display and sort order |
+| `updated_at` | date (`YYYY-MM-DD`) | No | Last updated date |
 | `tags` | array of strings | No | Display-only labels (no tag index pages) |
 | `links` | array of `{label, url}` | No | External links (GitHub, demo, docs, etc.) |
+| `draft` | boolean | No | If `true`, the page is skipped during build (default: `false`) |
 
 ---
 
@@ -163,12 +169,20 @@ Project description in Markdown.
 | `/` | `about.md` | About page with bio and links |
 | `/posts/` | All `posts/*.md` | Post listing, sorted newest-first by `created_at` |
 | `/posts/<slug>/` | `posts/<slug>.md` | Individual post |
-| `/projects/` | All `projects/*.md` | Project listing |
+| `/projects/` | All `projects/*.md` | Project listing, sorted newest-first by `created_at` |
 | `/projects/<slug>/` | `projects/<slug>.md` | Individual project |
 
-Slugs are derived from the Markdown filename (without the `.md` extension) with the following normalization: lowercase, spaces replaced with hyphens. For example, `My First Post.md` becomes `my-first-post/`.
+Slugs are derived from the Markdown filename (without the `.md` extension) with the following normalization pipeline:
 
-Posts with the same `created_at` date are sorted alphabetically by slug.
+1. Convert to lowercase.
+2. Replace spaces with hyphens.
+3. Strip any character that is not a lowercase ASCII letter, digit, or hyphen.
+4. Collapse consecutive hyphens into a single hyphen.
+5. Strip leading and trailing hyphens.
+
+For example, `My First Post.md` becomes `my-first-post/`.
+
+Both posts and projects with the same `created_at` date are sorted alphabetically by slug.
 
 ---
 
@@ -295,7 +309,7 @@ When a single page fails to render (e.g., missing required frontmatter field, ma
 2. Skips that page.
 3. Continues building the rest of the site.
 
-The build only exits with a non-zero status if a fatal error occurs (e.g., missing `sitegen3.toml`, missing input directory).
+The build only exits with a non-zero status if a fatal error occurs (e.g., missing `sitegen3.toml`, missing input directory, missing `about.md`, missing required configuration fields).
 
 ### What gets logged
 
@@ -310,7 +324,7 @@ The build only exits with a non-zero status if a fatal error occurs (e.g., missi
 
 ## Design Reference
 
-The visual design is defined in `design/`. It must be faithfully reproduced by the Jinja2 templates and the generated CSS.
+The visual design is defined in `design/` within the sitegen3 source repository. These files are development-time references used only when creating the Jinja2 templates and CSS — they are not distributed with the tool, not read during the build, and must not be referenced by any runtime code.
 
 Key design properties:
 
@@ -329,4 +343,8 @@ Design files:
 | `design/projects.html` | Project listing reference |
 | `design/project.html` | Individual project reference |
 
-The stylesheet (`style.css`) lives in `static/`, not `design/`. The `design/` directory is a reference for template development only — it is not read during the build.
+The stylesheet (`style.css`) lives in `static/`, not `design/`.
+
+### Date Display Format
+
+All dates rendered on the site use ISO 8601 format: `YYYY-MM-DD` (e.g., `2026-04-13`).
