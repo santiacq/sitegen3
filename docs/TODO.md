@@ -6,9 +6,9 @@ Features not included in the initial version.
 
 Generate a `feed.xml` (Atom or RSS 2.0) in the output root, listing all published posts with title, date, and content. Useful for readers who subscribe via feed aggregators.
 
-## File Watching
+## Watch & Live Reload
 
-Add a `--watch` flag to `sitegen3 build` (or `sitegen3 serve`) that monitors the input and static directories for changes and automatically rebuilds the site. Could use `watchdog` or `inotify`.
+Add a `--watch` flag to `sitegen3 serve` that monitors the input and static directories for changes, automatically rebuilds the site, and refreshes the browser. Could use `watchdog` or `inotify` for file watching and inject a small JavaScript snippet that polls or uses a WebSocket connection to trigger the reload.
 
 ## Sitemap
 
