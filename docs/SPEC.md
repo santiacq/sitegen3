@@ -31,19 +31,22 @@ The generated site has three sections:
 ```
 <input_dir>/          # default: content/
   about.md
+  assets/             # static files (images, etc.) — copied to output
+    images/
+      photo.jpg
   posts/
     my-first-post.md
     another-post.md
   projects/
     my-project.md
-assets/               # static files (images, etc.) — separate from content
-  images/
-    photo.jpg
+static/               # framework-level files (style.css) — copied to output root
+  style.css
 ```
 
 - `about.md` is a special reserved file for the about page.
 - Files in `posts/` and `projects/` each produce one page. The filename (without `.md`) becomes the URL slug.
-- The `assets/` directory is copied as-is to the output.
+- The `assets/` subdirectory inside `<input_dir>` is copied as-is to the output.
+- The `static/` directory is always at the site root (not configurable). Its contents are copied to the output root.
 
 ### Frontmatter Format
 
@@ -56,6 +59,12 @@ Frontmatter is placed at the top of each Markdown file, delimited by `+++` on it
 
 Markdown body starts here.
 ```
+
+Parsing rules:
+
+- If a file contains no `+++` delimiter at all, the frontmatter is returned as an empty dictionary and the entire file is treated as the Markdown body.
+- If the opening `+++` is present but the closing `+++` is missing, the parser raises an exception.
+- The frontmatter module never validates required fields — it only splits and parses. Validation of required fields (e.g., `title` for posts) is the responsibility of the rendering step.
 
 #### `about.md`
 
@@ -131,8 +140,8 @@ Project description in Markdown.
 ```
 <output_dir>/         # default: public/
   index.html          # About page
-  style.css           # Copied from design/
-  assets/             # Copied from assets/ input directory
+  style.css           # Copied from static/
+  assets/             # Copied from <input_dir>/assets/
     images/
       photo.jpg
   posts/
@@ -157,7 +166,9 @@ Project description in Markdown.
 | `/projects/` | All `projects/*.md` | Project listing |
 | `/projects/<slug>/` | `projects/<slug>.md` | Individual project |
 
-Slugs are derived directly from the Markdown filename (without the `.md` extension). No additional transformation is applied.
+Slugs are derived from the Markdown filename (without the `.md` extension) with the following normalization: lowercase, spaces replaced with hyphens. For example, `My First Post.md` becomes `my-first-post/`.
+
+Posts with the same `created_at` date are sorted alphabetically by slug.
 
 ---
 
@@ -191,8 +202,9 @@ Usage: sitegen3 build [OPTIONS] [DIR]
   Build the site from content sources.
 
   Looks for sitegen3.toml in DIR to determine the input and output
-  directories, then renders all Markdown content into HTML and copies assets
-  to the output directory. DIR defaults to the current working directory.
+  directories. Deletes the output directory if it exists, then renders
+  all Markdown content into HTML and copies assets and static files to
+  the output directory. DIR defaults to the current working directory.
 
 Arguments:
   [DIR]  Site root directory containing sitegen3.toml.  [default: .]
@@ -210,7 +222,7 @@ Usage: sitegen3 serve [OPTIONS] [DIR]
   Serve the output directory over HTTP.
 
   Looks for sitegen3.toml in DIR to determine which directory to serve.
-  Starts a simple static file server for local preview. Does not watch for
+  Starts Python's built-in http.server for local preview. Does not watch for
   changes or reload the browser — to preview an updated build, run
   'sitegen3 build' and then restart this command. DIR defaults to the
   current working directory.
@@ -231,10 +243,13 @@ Usage: sitegen3 init [OPTIONS] [DIR]
 
   Scaffold a new site in the given directory.
 
-  Creates sitegen3.toml pre-filled with placeholder values, and the expected
-  input directory structure (content/, assets/) inside DIR. Fails with an
-  error if sitegen3.toml already exists to avoid overwriting an existing
-  site. DIR defaults to the current working directory.
+  Creates sitegen3.toml pre-filled with placeholder values, the expected
+  input directory structure (content/, content/assets/, content/posts/,
+  content/projects/), and sample content files (about.md, a sample post,
+  and a sample project) inside DIR. Also creates the static/ directory
+  with style.css. Fails with an error if sitegen3.toml already exists to
+  avoid overwriting an existing site. DIR defaults to the current working
+  directory.
 
 Arguments:
   [DIR]  Directory to initialise.  [default: .]
@@ -252,7 +267,6 @@ The configuration file `sitegen3.toml` must be present in the working directory 
 ```toml
 [site]
 title = "My Site"
-base_url = "https://example.com"
 footer = "© 2024 My Name"
 
 [paths]
@@ -263,10 +277,34 @@ output = "public"
 | Key | Type | Required | Description |
 |---|---|---|---|
 | `site.title` | string | Yes | Site name shown in the navigation bar |
-| `site.base_url` | string | Yes | Deployed site URL (used for absolute links) |
 | `site.footer` | string | No | Footer text rendered on every page |
 | `paths.input` | string | No | Input content directory (default: `content`) |
 | `paths.output` | string | No | Output directory (default: `public`) |
+
+---
+
+## Error Handling & Logging
+
+The build uses Python's `logging` module. All significant actions and errors are logged to stderr.
+
+### Per-page resilience
+
+When a single page fails to render (e.g., missing required frontmatter field, malformed TOML, template error), the build:
+
+1. Logs a warning with the file path and the reason for the failure.
+2. Skips that page.
+3. Continues building the rest of the site.
+
+The build only exits with a non-zero status if a fatal error occurs (e.g., missing `sitegen3.toml`, missing input directory).
+
+### What gets logged
+
+- Start of build, including input/output paths.
+- Output directory wipe.
+- Each page rendered successfully (at `DEBUG` level).
+- Each page that failed to render, with the reason (at `WARNING` level).
+- Copy of assets and static files.
+- Build summary: total pages rendered, total skipped.
 
 ---
 
@@ -285,9 +323,10 @@ Design files:
 
 | File | Purpose |
 |---|---|
-| `design/style.css` | Complete stylesheet — copied verbatim to output |
 | `design/index.html` | About page reference |
 | `design/posts.html` | Post listing reference |
 | `design/post.html` | Individual post reference |
 | `design/projects.html` | Project listing reference |
 | `design/project.html` | Individual project reference |
+
+The stylesheet (`style.css`) lives in `static/`, not `design/`. The `design/` directory is a reference for template development only — it is not read during the build.
