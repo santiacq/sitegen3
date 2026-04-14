@@ -18,9 +18,9 @@ The generated site has three sections:
 | Language | Python 3.12 |
 | Dependency management | Poetry |
 | Template engine | Jinja2 |
-| Markdown renderer | python-markdown |
+| Markdown renderer | python-markdown (with `fenced_code` and `tables` extensions) |
 | Configuration format | TOML |
-| Frontmatter parser | Custom (no external library) |
+| Frontmatter parser | Custom delimiter splitting; TOML parsed by `tomllib` (stdlib) |
 
 ---
 
@@ -44,9 +44,10 @@ static/               # framework-level files (style.css) — copied to output r
 ```
 
 - `about.md` is a special reserved file for the about page.
+- If `posts/` or `projects/` directories do not exist, they are treated as empty collections — the listing page is still generated with zero entries.
 - Files in `posts/` and `projects/` each produce one page. The filename (without `.md`) becomes the URL slug.
-- The `assets/` subdirectory inside `<input_dir>` is copied as-is to the output.
-- The `static/` directory is always at the site root (not configurable); this is intentional to keep the project structure predictable. Its contents are copied to the output root.
+- The `assets/` subdirectory inside `<input_dir>` is copied as-is to the output. It holds content-level files (images referenced in posts and projects).
+- The `static/` directory is always at the site root (not configurable); this is intentional to keep the project structure predictable. It holds framework-level files (CSS, favicon) and its contents are copied to the output root.
 
 ### Frontmatter Format
 
