@@ -49,6 +49,32 @@ static/               # framework-level files (style.css) — copied to output r
 - The `assets/` subdirectory inside `<input_dir>` is copied as-is to the output. It holds content-level files (images referenced in posts and projects).
 - The `static/` directory is always at the site root (not configurable); this is intentional to keep the project structure predictable. It holds framework-level files (CSS, favicon) and its contents are copied to the output root.
 
+### Referencing Assets and Internal Pages in Markdown
+
+Because each post and project is rendered into its own subdirectory (e.g. `posts/my-post/index.html`), relative paths from the source file do not match the URL layout of the output. All internal references — assets and links to other pages — must use **root-relative URLs**.
+
+Assets:
+
+```markdown
+![Alt text](/assets/images/photo.jpg)
+```
+
+Internal pages:
+
+| Target | URL form |
+|---|---|
+| About page | `/` |
+| Post listing | `/posts/` |
+| Individual post | `/posts/<slug>/` |
+| Project listing | `/projects/` |
+| Individual project | `/projects/<slug>/` |
+
+```markdown
+See [my earlier post](/posts/my-first-post/) or the [project page](/projects/my-project/).
+```
+
+The `<slug>` must match the normalized slug derived from the source filename (see the slug pipeline under *Output Specification*). The build does not rewrite URLs — paths written in the Markdown are emitted as-is in the HTML. Relative paths like `assets/images/photo.jpg` or `my-first-post/` will resolve incorrectly in the browser and must not be used.
+
 ### Frontmatter Format
 
 Frontmatter is placed at the top of each Markdown file, delimited by `+++` on its own line. It uses TOML syntax and is parsed by a custom module (no external frontmatter library).
