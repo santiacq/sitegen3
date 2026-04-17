@@ -24,7 +24,7 @@ sitegen3/
     __init__.py
     cli.py                      # argparse entry point
     config.py                   # Load and validate sitegen3.toml
-    models.py                   # Dataclasses: Config, Link, About, Post, Project, BuildSummary
+    models.py                   # Dataclasses: Config, Link, About, Post, Project
     frontmatter.py              # Split `+++`-delimited TOML frontmatter from body
     slug.py                     # Normalize filenames into URL slugs
     discovery.py                # Walk input dir, return file paths
@@ -104,11 +104,6 @@ class Project:
     links: list[Link]
     body_html: str
     source_path: Path
-
-@dataclass(frozen=True)
-class BuildSummary:
-    rendered: int
-    skipped: int
 ```
 
 The render context passed to Jinja is constructed inline (a plain `dict`) at the moment a template is rendered. We deliberately do not introduce a `RenderContext` wrapper — it would be a layer with no behaviour.
@@ -222,7 +217,7 @@ def copy_static(root_dir: Path, output_dir: Path) -> None
 Responsibility: orchestrate the full pipeline. Owns the per-page try/except that turns `LoaderError` into a logged warning and a skip. Sorts posts and projects newest-first by `created_at`, with slug as a tiebreaker.
 
 ```python
-def build(root_dir: Path) -> BuildSummary
+def build(root_dir: Path) -> None
 ```
 
 ### `serve.py`
@@ -296,7 +291,9 @@ The `build` command runs the following stages in order. Each arrow is a function
                          └──────────────┘
                                 │
                                 ▼
-                          BuildSummary  ──► logged
+                         ┌──────────────┐
+                         │  build       │  (log summary: rendered, skipped)
+                         └──────────────┘
 ```
 
 Stage ownership:
@@ -314,7 +311,7 @@ Stage ownership:
 | Copy assets and static | `writer` |
 | Log summary | `build` |
 
-Per-page error handling lives in `build.py`: each `loader.load_*` call is wrapped in try/except, `LoaderError` is logged at `WARNING` with the source path, and `BuildSummary.skipped` is incremented.
+Per-page error handling lives in `build.py`: each `loader.load_*` call is wrapped in try/except, `LoaderError` is logged at `WARNING` with the source path, and a local `skipped` counter is incremented for the final summary log line.
 
 ---
 
