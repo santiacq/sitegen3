@@ -103,6 +103,7 @@ class Post:
     title: str
     created_at: date
     updated_at: date | None
+    draft: bool
     body_html: str
     source_path: Path      # Used in log messages
 
@@ -113,6 +114,7 @@ class Project:
     description: str
     created_at: date
     updated_at: date | None
+    draft: bool
     tags: list[str]
     links: list[Link]
     body_html: str
@@ -227,7 +229,7 @@ def copy_static(root_dir: Path, output_dir: Path) -> None
 
 ### `build.py`
 
-Responsibility: orchestrate the full pipeline. Owns the per-page try/except that turns `LoaderError` into a logged warning and a skip. Sorts posts and projects newest-first by `created_at`, with slug as a tiebreaker.
+Responsibility: orchestrate the full pipeline. Owns the per-page try/except that turns `LoaderError` into a logged warning and a skip. Filters out loaded models where `draft is True` before sorting and rendering. Sorts posts and projects newest-first by `created_at`, with slug as a tiebreaker. Wraps each `render_template` call in a second try/except that catches `jinja2.TemplateError`, logs a warning, and counts the page as skipped.
 
 ```python
 def build(root_dir: Path) -> None
@@ -317,7 +319,7 @@ Stage ownership:
 | Wipe output dir | `writer` |
 | Discover content paths | `discovery` |
 | Read + parse + render each file | `loader` (uses `frontmatter`, `markdown_renderer`, `slug`) |
-| Filter drafts | `loader` (returns `None` for drafts, filtered in `build`) |
+| Filter drafts | `build` (skips loaded models where `draft is True`) |
 | Sort posts/projects | `build` (newest-first by `created_at`, then by slug) |
 | Render templates | `templates` |
 | Write HTML files | `writer` |
@@ -380,7 +382,9 @@ All modules use `logging.getLogger(__name__)`. No module configures handlers —
 Two tiers, matching SPEC §Per-page resilience:
 
 - **Fatal**: missing `sitegen3.toml`, missing input directory, missing `about.md`, missing required config fields. Raised as exceptions from `config.load_config` and `discovery.find_about`. Caught at the `cli` boundary, logged at `ERROR`, exit code 1.
-- **Per-page**: any failure inside `loader.load_post` / `loader.load_project` (malformed TOML, missing required frontmatter, template error during that page's render). Wrapped as `LoaderError` and caught in `build.py`, which logs a `WARNING` with the source path and reason and continues.
+- **Per-page**: two categories, both resulting in a logged `WARNING` and a skip:
+  - **Load failure**: any failure inside `loader.load_post` / `loader.load_project` (malformed TOML, missing required frontmatter). Wrapped as `LoaderError` and caught in `build.py`'s load loop.
+  - **Render failure**: `jinja2.TemplateError` raised during `render_template` for an individual page. Caught in a separate try/except in `build.py` wrapping the render-and-write call for that page.
 
 `about.md` failures are treated as **fatal** — there is no site without an about page.
 
