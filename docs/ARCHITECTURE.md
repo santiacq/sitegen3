@@ -22,6 +22,7 @@ sitegen3/
     style.css
   src/sitegen3/
     __init__.py
+    exceptions.py               # SitegenError, ConfigError, DiscoveryError
     cli.py                      # argparse entry point
     config.py                   # Load and validate sitegen3.toml
     models.py                   # Dataclasses: Config, Link, About, Post, Project
@@ -129,9 +130,19 @@ The render context passed to Jinja is constructed inline (a plain `dict`) at the
 
 Each module is listed with its **responsibility** and **public interface**. Anything not listed is private.
 
+### `exceptions.py`
+
+Responsibility: define the exception hierarchy used across the package. No logic, no I/O. All other modules that raise or catch fatal errors import from here; nothing here imports from the rest of the package.
+
+```python
+class SitegenError(Exception): ...      # Base class; caught at the CLI boundary
+class ConfigError(SitegenError): ...    # Raised by config.py
+class DiscoveryError(SitegenError): ... # Raised by discovery.py
+```
+
 ### `cli.py`
 
-Responsibility: parse command-line arguments using stdlib `argparse` and dispatch to `build`, `serve`, or `init_cmd`. Builds a top-level parser with three subparsers; each subparser has its own `dir` positional and (for `serve`) a `--port` option. Calls `logging_setup.configure_logging()` once on entry. No business logic. Argparse's default help formatting differs slightly from the SPEC examples — the implementation should set program name, description, and help strings to match as closely as practical.
+Responsibility: parse command-line arguments using stdlib `argparse` and dispatch to `build`, `serve`, or `init_cmd`. Builds a top-level parser with three subparsers; each subparser has its own `dir` positional and (for `serve`) a `--port` option. Calls `logging_setup.configure_logging()` once on entry. Catches `SitegenError` at the top level, logs at `ERROR`, and calls `sys.exit(1)`. No other business logic. Argparse's default help formatting differs slightly from the SPEC examples — the implementation should set program name, description, and help strings to match as closely as practical.
 
 ```python
 def main() -> None: ...        # Console entry point declared in pyproject.toml
@@ -139,7 +150,7 @@ def main() -> None: ...        # Console entry point declared in pyproject.toml
 
 ### `config.py`
 
-Responsibility: load and validate `sitegen3.toml`. Resolves `paths.input` and `paths.output` to absolute paths against the site root. Raises a fatal exception if the file is missing or required fields are absent.
+Responsibility: load and validate `sitegen3.toml`. Resolves `paths.input` and `paths.output` to absolute paths against the site root. Raises `ConfigError` if the file is missing or required fields are absent.
 
 ```python
 def load_config(root_dir: Path) -> Config
@@ -167,7 +178,7 @@ def slugify(name: str) -> str
 
 ### `discovery.py`
 
-Responsibility: walk the input directory and return paths to content files. **Does not open or read any files.** Returns empty lists when `posts/` or `projects/` subdirectories are absent. Raises a fatal exception only when `about.md` is missing.
+Responsibility: walk the input directory and return paths to content files. **Does not open or read any files.** Returns empty lists when `posts/` or `projects/` subdirectories are absent. Raises `DiscoveryError` if `about.md` is missing.
 
 ```python
 def find_about(input_dir: Path) -> Path           # Fatal if missing
@@ -351,14 +362,17 @@ cli ──► build ──► config
 cli ──► serve ──► config
 cli ──► init_cmd
 cli ──► logging_setup
+cli ──► exceptions            (catches SitegenError)
 
-config  depends on models
-models  has no internal dependencies
+config    ──► exceptions      (raises ConfigError)
+discovery ──► exceptions      (raises DiscoveryError)
+models    has no internal dependencies
+exceptions has no internal dependencies
 ```
 
 Implementation order — at each step the project compiles and previously built modules can be exercised in isolation:
 
-1. `models`, `slug`, `frontmatter`, `markdown_renderer` — pure, no internal deps.
+1. `models`, `exceptions`, `slug`, `frontmatter`, `markdown_renderer` — pure, no internal deps.
 2. `config`, `logging_setup`.
 3. `templates` (with the Jinja templates themselves).
 4. `discovery`, `loader`.
@@ -381,7 +395,7 @@ All modules use `logging.getLogger(__name__)`. No module configures handlers —
 
 Two tiers, matching SPEC §Per-page resilience:
 
-- **Fatal**: missing `sitegen3.toml`, missing input directory, missing `about.md`, missing required config fields. Raised as exceptions from `config.load_config` and `discovery.find_about`. Caught at the `cli` boundary, logged at `ERROR`, exit code 1.
+- **Fatal**: missing `sitegen3.toml`, missing input directory, missing `about.md`, missing required config fields. Raised as `ConfigError` from `config.load_config` or `DiscoveryError` from `discovery.find_about` — both subclasses of `SitegenError`. Caught at the `cli` boundary as `SitegenError`, logged at `ERROR`, exit code 1.
 - **Per-page**: two categories, both resulting in a logged `WARNING` and a skip:
   - **Load failure**: any failure inside `loader.load_post` / `loader.load_project` (malformed TOML, missing required frontmatter). Wrapped as `LoaderError` and caught in `build.py`'s load loop.
   - **Render failure**: `jinja2.TemplateError` raised during `render_template` for an individual page. Caught in a separate try/except in `build.py` wrapping the render-and-write call for that page.
@@ -473,6 +487,7 @@ Three tiers:
 | `cli` | Yes | Smoke (unit) | Invoke `main()` with patched `sys.argv`; confirm each subcommand dispatches to the right function. |
 | `config` | Yes | Integration | Load real TOML via `tmp_path`; path resolution; fatal errors on missing file / missing required fields. |
 | `models` | No | — | Frozen dataclasses with no logic. |
+| `exceptions` | No | — | Bare exception subclasses with no logic. |
 | `frontmatter` | Yes | Unit | Parametrized: no delimiter, unterminated delimiter, valid TOML, empty frontmatter, body preserved verbatim. |
 | `slug` | Yes | Unit | Parametrized across the 5-step pipeline: mixed case, spaces, punctuation, non-ASCII, collapsed/edge hyphens. |
 | `discovery` | Yes | Integration | Missing `about.md` raises fatal; empty `posts/` and `projects/` return empty lists; returned paths match files on disk. |
