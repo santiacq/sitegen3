@@ -15,12 +15,14 @@ The generated site has three sections:
 
 | Concern | Choice |
 |---|---|
-| Language | Python 3.12 |
+| Language | Python 3.12+ |
 | Dependency management | Poetry |
 | Template engine | Jinja2 |
 | Markdown renderer | python-markdown (with `fenced_code` and `tables` extensions) |
 | Configuration format | TOML |
 | Frontmatter parser | Custom delimiter splitting; TOML parsed by `tomllib` (stdlib) |
+| Linter / formatter | ruff |
+| Type checker | pyright (strict mode) |
 
 ---
 

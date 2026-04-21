@@ -376,3 +376,61 @@ Two tiers, matching SPEC §Per-page resilience:
 `Config` is loaded once (in `build.build`, `serve.serve`, or `init_cmd.init` as appropriate) and passed explicitly as a function argument to anything that needs it. No module-level globals, no singleton, no implicit context. This keeps every function trivially testable with a synthesized `Config`.
 
 The only module-level state in the codebase is the cached Jinja `Environment` in `templates.py` and the per-module loggers — neither depends on configuration.
+
+---
+
+## Development & Tooling
+
+The choices below apply to every module in the codebase, including tests. Configuration for each tool lives in `pyproject.toml`.
+
+### Python Version
+
+The project targets `>=3.12`. Modern syntax is used throughout:
+
+- `X | None` instead of `typing.Optional[X]`.
+- Built-in generics (`list[Post]`, `dict[str, Any]`) instead of `typing.List` / `typing.Dict`.
+- `from __future__ import annotations` is **not** used — 3.12 is the floor so it is unnecessary, and leaving it off keeps annotations evaluable at runtime for tooling that inspects them.
+
+### Type Hints
+
+All function signatures are fully annotated: every parameter and the return type. This applies to private helpers and test fixtures as well as public module interfaces.
+
+- Pyright runs in **strict** mode. The module interfaces in this document (e.g. `def load_config(root_dir: Path) -> Config`) are already written in this style; strict mode enforces it across the codebase.
+- `Any` is a last resort — prefer precise types or narrow generics.
+- `dict` payloads passed to Jinja may be typed as `dict[str, Any]` since the template boundary is dynamic; everywhere else, a structured type is preferred.
+
+### Linting & Formatting
+
+`ruff` handles both linting and formatting. No `black`, no `isort`, no `flake8` — ruff subsumes all three.
+
+Enabled rule groups:
+
+| Group | Covers |
+|---|---|
+| `E`, `F`, `W` | pyflakes + pycodestyle basics |
+| `I` | import sorting |
+| `B` | flake8-bugbear (common bug patterns) |
+| `UP` | pyupgrade (modern syntax enforcement) |
+| `SIM` | simplifications |
+| `RUF` | ruff-native rules |
+
+`ruff format` is the canonical formatter.
+
+### Docstrings
+
+Docstrings are omitted by default. Add one only where the *why* is non-obvious: a hidden constraint, a subtle invariant, a workaround for a specific bug, or behaviour that would surprise a reader.
+
+Identifier names and the per-module responsibility summaries in this document describe *what* the code does. Comments and docstrings are reserved for *why*.
+
+### Development Commands
+
+The canonical checks a change must pass before being considered done:
+
+```
+ruff format .        # format
+ruff check --fix .   # lint (auto-fix what can be fixed)
+pyright src/         # type check (strict mode)
+pytest               # run tests
+```
+
+All four must pass. "Tests pass" alone is not sufficient — type errors and lint violations are equally blocking.
