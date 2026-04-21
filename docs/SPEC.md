@@ -23,6 +23,7 @@ The generated site has three sections:
 | Frontmatter parser | Custom delimiter splitting; TOML parsed by `tomllib` (stdlib) |
 | Linter / formatter | ruff |
 | Type checker | pyright (strict mode) |
+| Testing framework | pytest |
 
 ---
 

@@ -50,7 +50,20 @@ sitegen3/
       content/posts/hello-world.md
       content/projects/sample-project.md
   tests/
-    ...
+    conftest.py                 # Shared fixtures (sample Config, markdown helpers)
+    fixtures/
+      sample_site/              # Minimal complete site tree for end-to-end tests
+    test_cli.py
+    test_config.py
+    test_frontmatter.py
+    test_slug.py
+    test_markdown_renderer.py
+    test_templates.py
+    test_discovery.py
+    test_loader.py
+    test_writer.py
+    test_build.py
+    test_init_cmd.py
 ```
 
 Notes:
@@ -434,3 +447,57 @@ pytest               # run tests
 ```
 
 All four must pass. "Tests pass" alone is not sufficient — type errors and lint violations are equally blocking.
+
+---
+
+## Testing
+
+Tests live in `tests/`, mirroring `src/sitegen3/`: one `test_<module>.py` per module that has behaviour worth verifying. Shared fixtures are in `tests/conftest.py`; the end-to-end fixture site lives under `tests/fixtures/sample_site/`.
+
+### Test Categories
+
+Three tiers:
+
+1. **Unit** — pure modules with no I/O (`slug`, `frontmatter`, `markdown_renderer`, `templates`). Fast, exhaustive, parameterized.
+2. **Integration** — modules that read or write the filesystem (`config`, `discovery`, `loader`, `writer`, `init_cmd`). Use pytest's `tmp_path` fixture for isolated per-test directories. Write real files; do not mock `open`, `pathlib`, or stdlib I/O.
+3. **End-to-end** — `build()` run against a fixture site, with assertions on the resulting output tree, including per-page resilience (a broken post produces a warning and a skip, not a fatal exit).
+
+### Per-Module Coverage
+
+| Module | Tested | Category | What's covered |
+|---|---|---|---|
+| `cli` | Yes | Smoke (unit) | Invoke `main()` with patched `sys.argv`; confirm each subcommand dispatches to the right function. |
+| `config` | Yes | Integration | Load real TOML via `tmp_path`; path resolution; fatal errors on missing file / missing required fields. |
+| `models` | No | — | Frozen dataclasses with no logic. |
+| `frontmatter` | Yes | Unit | Parametrized: no delimiter, unterminated delimiter, valid TOML, empty frontmatter, body preserved verbatim. |
+| `slug` | Yes | Unit | Parametrized across the 5-step pipeline: mixed case, spaces, punctuation, non-ASCII, collapsed/edge hyphens. |
+| `discovery` | Yes | Integration | Missing `about.md` raises fatal; empty `posts/` and `projects/` return empty lists; returned paths match files on disk. |
+| `loader` | Yes | Integration | Valid files → model; malformed TOML and missing required fields raise `LoaderError`; `draft: true` is handled per SPEC. |
+| `markdown_renderer` | Yes | Unit | Smoke: plain text, fenced code block, table. |
+| `templates` | Yes | Unit | Behavioural assertion on the escape contract: given `body_html = "<p>hello</p>"` and `title = "<script>alert(1)</script>"`, the rendered output contains a real `<p>hello</p>` (`body_html` passes through `\|safe`) AND an escaped `&lt;script&gt;` (`title` went through autoescape). Guards both directions. |
+| `writer` | Yes | Integration | `wipe_output`, `write_page` (URL path → `index.html`), `copy_assets`, `copy_static` on `tmp_path`. |
+| `build` | Yes | End-to-end | Fixture site → `build()` → expected output files exist with expected contents. Broken post in the fixture produces a warning and a non-fatal skip. |
+| `serve` | No | — | Thin wrapper around `http.server.HTTPServer`; no logic worth testing. |
+| `init_cmd` | Yes | Integration | Scaffold into empty `tmp_path`; refuses when `sitegen3.toml` already exists. |
+| `logging_setup` | No | — | One-call stdlib wrapper. |
+
+### Fixtures
+
+- `tests/conftest.py` holds shared fixtures: a `sample_config` factory producing a `Config` pointing at `tmp_path`, helpers to write sample posts and projects, and a helper to read output files.
+- `tests/fixtures/sample_site/` is a minimal but complete site tree used by the end-to-end build test. It contains exactly: `sitegen3.toml`, `content/about.md`, one valid post, one valid project, **one broken post** (malformed TOML) to exercise per-page resilience, and a `static/style.css`.
+- Never mock filesystem APIs. Use `tmp_path` and write real files. Mocks on I/O mask the integration failures these tests exist to catch.
+
+### Conventions
+
+- Test files named `test_<module>.py`; test functions `test_<behaviour>` or `test_<behaviour>_<condition>` where helpful.
+- Prefer `pytest.mark.parametrize` over `for` loops for multi-case tests.
+- Error cases use `pytest.raises(ExpectedError, match=...)` to pin the message.
+- Arrange-Act-Assert structure; one subject-under-test per test function.
+- Test fixtures and helpers are fully type-annotated — pyright strict runs over `tests/` too.
+- No coverage percentage is prescribed. The per-module table above **is** the target: every "Yes" row has its public interface and documented error modes exercised.
+
+### Running Tests
+
+Tests import `sitegen3` as an installed package. Run `poetry install` once after cloning to put the package on the import path — the editable install picks up subsequent code changes automatically. Reinstall only when `pyproject.toml` dependencies or the console-script entry point change. This is a consequence of the `src/` layout: `pytest` will not find the package without the install step.
+
+Pytest configuration lives in `pyproject.toml` under `[tool.pytest.ini_options]`, alongside the `[tool.ruff]` and `[tool.pyright]` sections. Minimum settings: `testpaths = ["tests"]` and `addopts = "-ra --strict-markers"`.
