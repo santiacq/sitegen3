@@ -135,9 +135,14 @@ Each module is listed with its **responsibility** and **public interface**. Anyt
 Responsibility: define the exception hierarchy used across the package. No logic, no I/O. All other modules that raise or catch fatal errors import from here; nothing here imports from the rest of the package.
 
 ```python
-class SitegenError(Exception): ...      # Base class; caught at the CLI boundary
-class ConfigError(SitegenError): ...    # Raised by config.py
-class DiscoveryError(SitegenError): ... # Raised by discovery.py
+class SitegenError(Exception): ...         # Root; cli.py catches this
+
+class ConfigError(SitegenError): ...       # Fatal: raised by config.py
+class DiscoveryError(SitegenError): ...    # Fatal: raised by discovery.py
+
+class PageError(SitegenError): ...         # Per-page: build.py catches this branch
+class LoaderError(PageError): ...          # Parse/validation failure; raised by loader.py
+class RenderError(PageError): ...          # Template failure; raised by templates.py (wraps jinja2)
 ```
 
 ### `cli.py`
@@ -188,14 +193,12 @@ def find_projects(input_dir: Path) -> list[Path]
 
 ### `loader.py`
 
-Responsibility: turn a single file path into a single model. For one path, the loader reads the file, calls `frontmatter.parse`, validates required fields, calls `markdown_renderer.render`, applies `slug.slugify`, and constructs a `Post` / `Project` / `About`. Any per-file failure (malformed TOML, missing required field, etc.) is wrapped as `LoaderError` and raised; it is never caught here.
+Responsibility: turn a single file path into a single model. For one path, the loader reads the file, calls `frontmatter.parse`, validates required fields, calls `markdown_renderer.render`, applies `slug.slugify`, and constructs a `Post` / `Project` / `About`. Any per-file failure (malformed TOML, missing required field, etc.) is raised as `LoaderError` (imported from `exceptions`); it is never caught here.
 
 ```python
 def load_about(path: Path) -> About
 def load_post(path: Path) -> Post
 def load_project(path: Path) -> Project
-
-class LoaderError(Exception): ...
 ```
 
 **Why discovery and loader are separate.** SPEC §Per-page resilience requires that one broken file (e.g. `posts/broken.md` with malformed TOML) must not abort the whole build. That means the per-file try/except has to live somewhere outside the file-reading code — otherwise it is impossible to know which file caused the failure or to continue with the next one. The split puts that loop in `build.py`:
@@ -204,7 +207,7 @@ class LoaderError(Exception): ...
 for path in discovery.find_posts(input_dir):
     try:
         posts.append(loader.load_post(path))
-    except LoaderError as e:
+    except PageError as e:
         log.warning("skipping %s: %s", path, e)
         skipped += 1
 ```
@@ -221,7 +224,7 @@ def render(text: str) -> str
 
 ### `templates.py`
 
-Responsibility: own the Jinja2 `Environment` (configured with `PackageLoader("sitegen3", "templates")` and autoescape on). Provides a single render entry point. The `Environment` is cached at module level for performance; it does not depend on `Config`. `body_html` values in the render context contain pre-rendered HTML and must be piped through `|safe` in templates — all other context values go through autoescape normally.
+Responsibility: own the Jinja2 `Environment` (configured with `PackageLoader("sitegen3", "templates")` and autoescape on). Provides a single render entry point. The `Environment` is cached at module level for performance; it does not depend on `Config`. `body_html` values in the render context contain pre-rendered HTML and must be piped through `|safe` in templates — all other context values go through autoescape normally. Wraps `jinja2.TemplateError` as `RenderError` so callers never need to import `jinja2` for error handling.
 
 ```python
 def render_template(name: str, context: dict) -> str
@@ -240,7 +243,7 @@ def copy_static(root_dir: Path, output_dir: Path) -> None
 
 ### `build.py`
 
-Responsibility: orchestrate the full pipeline. Owns the per-page try/except that turns `LoaderError` into a logged warning and a skip. Filters out loaded models where `draft is True` before sorting and rendering. Sorts posts and projects newest-first by `created_at`, with slug as a tiebreaker. Wraps each `render_template` call in a second try/except that catches `jinja2.TemplateError`, logs a warning, and counts the page as skipped.
+Responsibility: orchestrate the full pipeline. Catches `PageError` in two places — the load loop (where `loader.load_post` / `loader.load_project` raise `LoaderError`) and the render loop (where `templates.render_template` raises `RenderError`) — logging a `WARNING` and incrementing a skip counter each time. Calls `load_about` outside both guards so any failure propagates as a fatal `SitegenError`. Filters out loaded models where `draft is True` before sorting and rendering. Sorts posts and projects newest-first by `created_at`, with slug as a tiebreaker.
 
 ```python
 def build(root_dir: Path) -> None
@@ -366,6 +369,8 @@ cli ──► exceptions            (catches SitegenError)
 
 config    ──► exceptions      (raises ConfigError)
 discovery ──► exceptions      (raises DiscoveryError)
+loader    ──► exceptions      (raises LoaderError)
+templates ──► exceptions      (raises RenderError, wraps jinja2.TemplateError)
 models    has no internal dependencies
 exceptions has no internal dependencies
 ```
@@ -396,9 +401,7 @@ All modules use `logging.getLogger(__name__)`. No module configures handlers —
 Two tiers, matching SPEC §Per-page resilience:
 
 - **Fatal**: missing `sitegen3.toml`, missing input directory, missing `about.md`, missing required config fields. Raised as `ConfigError` from `config.load_config` or `DiscoveryError` from `discovery.find_about` — both subclasses of `SitegenError`. Caught at the `cli` boundary as `SitegenError`, logged at `ERROR`, exit code 1.
-- **Per-page**: two categories, both resulting in a logged `WARNING` and a skip:
-  - **Load failure**: any failure inside `loader.load_post` / `loader.load_project` (malformed TOML, missing required frontmatter). Wrapped as `LoaderError` and caught in `build.py`'s load loop.
-  - **Render failure**: `jinja2.TemplateError` raised during `render_template` for an individual page. Caught in a separate try/except in `build.py` wrapping the render-and-write call for that page.
+- **Per-page**: any `PageError` raised during load or render of a post or project. `build.py` catches `PageError` in two separate loops — the load loop (`LoaderError` from `loader.py`) and the render loop (`RenderError` from `templates.py`, which wraps `jinja2.TemplateError`). Both result in a logged `WARNING` and a skip. `load_about` is called outside both guards; its failure propagates up to the `SitegenError` catch at the CLI boundary.
 
 `about.md` failures are treated as **fatal** — there is no site without an about page.
 
