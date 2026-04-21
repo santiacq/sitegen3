@@ -221,7 +221,7 @@ def render(text: str) -> str
 
 ### `templates.py`
 
-Responsibility: own the Jinja2 `Environment` (configured with `PackageLoader("sitegen3", "templates")` and autoescape on). Provides a single render entry point. The `Environment` is cached at module level for performance; it does not depend on `Config`.
+Responsibility: own the Jinja2 `Environment` (configured with `PackageLoader("sitegen3", "templates")` and autoescape on). Provides a single render entry point. The `Environment` is cached at module level for performance; it does not depend on `Config`. `body_html` values in the render context contain pre-rendered HTML and must be piped through `|safe` in templates — all other context values go through autoescape normally.
 
 ```python
 def render_template(name: str, context: dict) -> str
