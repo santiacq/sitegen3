@@ -186,7 +186,7 @@ def slugify(name: str) -> str
 
 ### `discovery.py`
 
-Responsibility: walk the input directory and return paths to content files. **Does not open or read any files.** Returns empty lists when `posts/` or `projects/` subdirectories are absent. Raises `DiscoveryError` if `about.md` is missing.
+Responsibility: walk the input directory and return paths to content files. **Does not open or read any files.** `find_posts` and `find_projects` return only `*.md` files in the top level of their respective directories; other files and subdirectories are ignored. Returns empty lists when `posts/` or `projects/` subdirectories are absent. Raises `DiscoveryError` if `about.md` is missing.
 
 ```python
 def find_about(input_dir: Path) -> Path           # Fatal if missing

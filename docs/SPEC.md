@@ -48,7 +48,7 @@ static/               # framework-level files (style.css) — copied to output r
 
 - `about.md` is a special reserved file for the about page.
 - If `posts/` or `projects/` directories do not exist, they are treated as empty collections — the listing page is still generated with zero entries.
-- Files in `posts/` and `projects/` each produce one page. The filename (without `.md`) becomes the URL slug.
+- Files in `posts/` and `projects/` each produce one page. The filename (without `.md`) becomes the URL slug. Only `*.md` files are considered; any other files and all subdirectories are ignored.
 - The `assets/` subdirectory inside `<input_dir>` is copied as-is to the output. It holds content-level files (images referenced in posts and projects).
 - The `static/` directory is always at the site root (not configurable); this is intentional to keep the project structure predictable. It holds framework-level files (CSS, favicon) and its contents are copied to the output root.
 
