@@ -95,6 +95,8 @@ Parsing rules:
 - If a file contains no `+++` delimiter at all, the frontmatter is returned as an empty dictionary and the entire file is treated as the Markdown body.
 - If the opening `+++` is present but the closing `+++` is missing, the parser raises an exception.
 - The frontmatter module never validates required fields — it only splits and parses. Validation of required fields (e.g., `title` for posts) is the responsibility of the rendering step.
+- Unknown keys in frontmatter and in `sitegen3.toml` are silently ignored. This matches standard TOML/stdlib parser behaviour and keeps the config forward-compatible.
+- Raw HTML embedded in Markdown bodies is passed through to the rendered output unchanged. Authors are trusted; this is not a multi-tenant renderer.
 
 #### `about.md`
 
@@ -133,7 +135,7 @@ Post body in Markdown.
 | `title` | string | Yes | Post title |
 | `created_at` | date (`YYYY-MM-DD`) | Yes | Publication date, used for display and sort order |
 | `updated_at` | date (`YYYY-MM-DD`) | No | Last updated date |
-| `draft` | boolean | No | If `true`, the page is skipped during build (default: `false`) |
+| `draft` | boolean | No | If `true`, the entry is excluded from both the individual page render and the listing page (default: `false`) |
 
 #### Projects (`projects/*.md`)
 
@@ -165,7 +167,7 @@ Project description in Markdown.
 | `updated_at` | date (`YYYY-MM-DD`) | No | Last updated date |
 | `tags` | array of strings | No | Display-only labels (no tag index pages) |
 | `links` | array of `{label, url}` | No | External links (GitHub, demo, docs, etc.) |
-| `draft` | boolean | No | If `true`, the page is skipped during build (default: `false`) |
+| `draft` | boolean | No | If `true`, the entry is excluded from both the individual page render and the listing page (default: `false`) |
 
 ---
 
@@ -202,6 +204,21 @@ Project description in Markdown.
 | `/projects/` | All `projects/*.md` | Project listing, sorted newest-first by `created_at` |
 | `/projects/<slug>/` | `projects/<slug>.md` | Individual project |
 
+#### Rendered Fields per Page Type
+
+The visual styling is authoritative in `design/`. The *data shown* on each page is authoritative here — templates must render exactly these fields and no others. Every page has the same navigation bar at the top and the same footer at the bottom; the table below lists the page-specific content that sits between them.
+
+| Page | Content between nav and footer |
+|---|---|
+| About (`/`) | Rendered Markdown body, `links` (as a list) |
+| Post listing (`/posts/`) | One entry per non-draft post: `title`, `created_at` |
+| Post detail (`/posts/<slug>/`) | `title`, `created_at`, `updated_at` (if set), rendered Markdown body |
+| Project listing (`/projects/`) | One entry per non-draft project: `title`, `description`, `created_at`, `tags` |
+| Project detail (`/projects/<slug>/`) | `title`, `created_at`, `updated_at` (if set), `tags`, `links`, rendered Markdown body |
+
+- **Navigation** (top, every page): site title on the left, the three fixed links **About** / **Posts** / **Projects** on the right.
+- **Footer** (bottom, every page): `site.footer` text if set; otherwise the footer element is omitted entirely.
+
 Slugs are derived from the Markdown filename (without the `.md` extension) with the following normalization pipeline:
 
 1. Convert to lowercase.
@@ -213,6 +230,8 @@ Slugs are derived from the Markdown filename (without the `.md` extension) with 
 For example, `My First Post.md` becomes `my-first-post/`.
 
 Both posts and projects with the same `created_at` date are sorted alphabetically by slug.
+
+If two **non-draft** source files within the same collection normalize to the same slug (e.g., `My Post.md` and `my-post.md` both produce `my-post`), the build aborts with a fatal error naming both source files. Silent overwrite would cause data loss. The check runs after draft filtering, so a non-draft and a draft sharing a slug are not a conflict — only the non-draft produces output.
 
 ---
 
@@ -263,13 +282,15 @@ Options:
 $ sitegen3 serve --help
 Usage: sitegen3 serve [OPTIONS] [DIR]
 
-  Serve the output directory over HTTP.
+  Serve the output directory over HTTP on 127.0.0.1 (localhost only).
 
   Looks for sitegen3.toml in DIR to determine which directory to serve.
-  Starts Python's built-in http.server for local preview. Does not watch for
-  changes or reload the browser — to preview an updated build, run
-  'sitegen3 build' and then restart this command. DIR defaults to the
-  current working directory.
+  Starts Python's built-in http.server for local preview, bound to 127.0.0.1
+  so the preview is not exposed on the LAN. Does not watch for changes or
+  reload the browser — to preview an updated build, run 'sitegen3 build' and
+  then restart this command. Exits with an error if the output directory
+  does not exist (run 'sitegen3 build' first). DIR defaults to the current
+  working directory.
 
 Arguments:
   [DIR]  Site root directory containing sitegen3.toml.  [default: .]
@@ -321,7 +342,7 @@ output = "public"
 | Key | Type | Required | Description |
 |---|---|---|---|
 | `site.title` | string | Yes | Site name shown in the navigation bar |
-| `site.footer` | string | No | Footer text rendered on every page |
+| `site.footer` | string | No | Footer text rendered on every page. If unset, the footer element is omitted from the DOM entirely (not rendered empty). |
 | `paths.input` | string | No | Input content directory (default: `content`) |
 | `paths.output` | string | No | Output directory (default: `public`) |
 
@@ -361,7 +382,7 @@ Key design properties:
 - **Theme**: Dark background (`#111`) with light gray text (`#ccc`) and a sage green accent (`#5fba7d`)
 - **Typography**: Monospace only — IBM Plex Mono / Fira Code / SF Mono stack
 - **Layout**: Centered single-column, max-width 640px, responsive at 480px
-- **Navigation**: Site title left, nav links right (`/`, `/posts/`, `/projects/`)
+- **Navigation**: Site title (from `site.title`) on the left; three nav links on the right with fixed labels **About** (→ `/`), **Posts** (→ `/posts/`), **Projects** (→ `/projects/`). Labels are not configurable.
 
 Design files:
 

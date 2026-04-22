@@ -48,6 +48,7 @@ sitegen3/
       sitegen3.toml
       static/style.css
       content/about.md
+      content/assets/.gitkeep
       content/posts/hello-world.md
       content/projects/sample-project.md
   tests/
@@ -135,10 +136,12 @@ Each module is listed with its **responsibility** and **public interface**. Anyt
 Responsibility: define the exception hierarchy used across the package. No logic, no I/O. All other modules that raise or catch fatal errors import from here; nothing here imports from the rest of the package.
 
 ```python
-class SitegenError(Exception): ...         # Root; cli.py catches this
+class SitegenError(Exception): ...         # Root; cli.py catches this. Abstract — never raised directly.
 
 class ConfigError(SitegenError): ...       # Fatal: raised by config.py
 class DiscoveryError(SitegenError): ...    # Fatal: raised by discovery.py
+class InitError(SitegenError): ...         # Fatal: raised by init_cmd.py (e.g., sitegen3.toml already exists)
+class ServeError(SitegenError): ...        # Fatal: raised by serve.py (e.g., output directory missing)
 
 class PageError(SitegenError): ...         # Per-page: build.py catches this branch
 class LoaderError(PageError): ...          # Parse/validation failure; raised by loader.py
@@ -155,7 +158,7 @@ def main() -> None: ...        # Console entry point declared in pyproject.toml
 
 ### `config.py`
 
-Responsibility: load and validate `sitegen3.toml`. Resolves `paths.input` and `paths.output` to absolute paths against the site root. Raises `ConfigError` if the file is missing or required fields are absent.
+Responsibility: load and validate `sitegen3.toml`. Resolves `paths.input` and `paths.output` to absolute paths against the site root, and verifies that `paths.input` exists on disk. Raises `ConfigError` if the file is missing, required fields are absent, or the input directory does not exist. The output directory is not checked here — `writer.wipe_output` creates it.
 
 ```python
 def load_config(root_dir: Path) -> Config
@@ -167,10 +170,10 @@ Responsibility: define the dataclasses listed above. No logic, no I/O.
 
 ### `frontmatter.py`
 
-Responsibility: split a Markdown file into a frontmatter dict and a body string. Implements the rules in SPEC §Frontmatter Format (no delimiter → empty dict + full text as body; opening `+++` without closing → exception). No field validation — that lives in `loader.py`.
+Responsibility: split a Markdown file into a frontmatter dict and a body string. Implements the rules in SPEC §Frontmatter Format (no delimiter → empty dict + full text as body; opening `+++` without closing → `ValueError`). No field validation — that lives in `loader.py`. Deliberately raises stdlib `ValueError` rather than importing `LoaderError`: `frontmatter` is a generic splitter with no knowledge of sitegen3's error hierarchy. `loader.py` catches the `ValueError` and re-raises as `LoaderError` via `raise ... from` to preserve the traceback.
 
 ```python
-def parse(text: str) -> tuple[dict, str]
+def parse(text: str) -> tuple[dict[str, Any], str]
 ```
 
 ### `slug.py`
@@ -193,7 +196,7 @@ def find_projects(input_dir: Path) -> list[Path]
 
 ### `loader.py`
 
-Responsibility: turn a single file path into a single model. For one path, the loader reads the file, calls `frontmatter.parse`, validates required fields, calls `markdown_renderer.render`, applies `slug.slugify`, and constructs a `Post` / `Project` / `About`. Any per-file failure (malformed TOML, missing required field, etc.) is raised as `LoaderError` (imported from `exceptions`); it is never caught here.
+Responsibility: turn a single file path into a single model. For one path, the loader reads the file, calls `frontmatter.parse`, validates required fields (presence and type — e.g., `created_at` must be a `date`), calls `markdown_renderer.render`, applies `slug.slugify`, and constructs a `Post` / `Project` / `About`. Any per-file failure (malformed TOML, missing required field, wrong TOML type, unterminated frontmatter) is raised as `LoaderError` (imported from `exceptions`); upstream `ValueError` from `frontmatter.parse` and `tomllib.TOMLDecodeError` are wrapped via `raise LoaderError(...) from e`. Errors are never caught here.
 
 ```python
 def load_about(path: Path) -> About
@@ -224,15 +227,15 @@ def render(text: str) -> str
 
 ### `templates.py`
 
-Responsibility: own the Jinja2 `Environment` (configured with `PackageLoader("sitegen3", "templates")` and autoescape on). Provides a single render entry point. The `Environment` is cached at module level for performance; it does not depend on `Config`. `body_html` values in the render context contain pre-rendered HTML and must be piped through `|safe` in templates — all other context values go through autoescape normally. Wraps `jinja2.TemplateError` as `RenderError` so callers never need to import `jinja2` for error handling.
+Responsibility: own the Jinja2 `Environment` (configured with `PackageLoader("sitegen3", "templates")`, and `autoescape=select_autoescape(enabled_extensions=("html", "j2", "html.j2"))`). The explicit extension list is required because Jinja's default autoescape only covers `.html`/`.htm`, and our templates use the compound `.html.j2` suffix. Provides a single render entry point. The `Environment` is cached at module level for performance; it does not depend on `Config`. `body_html` values in the render context contain pre-rendered HTML and must be piped through `|safe` in templates — all other context values go through autoescape normally. Wraps `jinja2.TemplateError` as `RenderError` so callers never need to import `jinja2` for error handling.
 
 ```python
-def render_template(name: str, context: dict) -> str
+def render_template(name: str, context: dict[str, Any]) -> str
 ```
 
 ### `writer.py`
 
-Responsibility: all output-side filesystem operations. Wipes the output directory, writes HTML files at their URL paths (`/posts/foo/` → `posts/foo/index.html`), copies asset and static trees.
+Responsibility: all output-side filesystem operations. Wipes the output directory, writes HTML files at their URL paths (`/posts/foo/` → `posts/foo/index.html`), copies asset and static trees. The literal string `"static"` appears only in `copy_static`; no other module should hardcode the directory name.
 
 ```python
 def wipe_output(output_dir: Path) -> None
@@ -241,9 +244,15 @@ def copy_assets(input_dir: Path, output_dir: Path) -> None
 def copy_static(root_dir: Path, output_dir: Path) -> None
 ```
 
+Contracts:
+
+- `write_page` — `url_path` must start and end with `/`. `/` → `<output_dir>/index.html`; `/posts/foo/` → `<output_dir>/posts/foo/index.html`. Intermediate directories are created as needed. Callers that build `url_path` from a slug must include both slashes.
+- `copy_assets` — if `<input_dir>/assets/` does not exist, log `INFO` ("no assets/ directory, skipping") and return. Not fatal.
+- `copy_static` — if `<root_dir>/static/` does not exist, log `INFO` ("no static/ directory, skipping") and return. Not fatal.
+
 ### `build.py`
 
-Responsibility: orchestrate the full pipeline. Catches `PageError` in two places — the load loop (where `loader.load_post` / `loader.load_project` raise `LoaderError`) and the render loop (where `templates.render_template` raises `RenderError`) — logging a `WARNING` and incrementing a skip counter each time. Calls `load_about` outside both guards so any failure propagates as a fatal `SitegenError`. Filters out loaded models where `draft is True` before sorting and rendering. Sorts posts and projects newest-first by `created_at`, with slug as a tiebreaker.
+Responsibility: orchestrate the full pipeline. Catches `PageError` in two places — the load loop (where `loader.load_post` / `loader.load_project` raise `LoaderError`) and the render loop (where `templates.render_template` raises `RenderError`) — logging a `WARNING` and incrementing a skip counter each time. Calls `load_about` and the About render step outside both guards so any failure propagates as a fatal `SitegenError` (there is no site without an about page). Filters out loaded models where `draft is True` before sorting and rendering. Sorts posts and projects newest-first by `created_at`, with slug as a tiebreaker. After filtering, checks for slug collisions within each collection (two non-draft files normalizing to the same slug); on collision, raises `DiscoveryError` naming both source paths. Slug collisions are fatal because silent overwrite would cause data loss.
 
 ```python
 def build(root_dir: Path) -> None
@@ -251,7 +260,7 @@ def build(root_dir: Path) -> None
 
 ### `serve.py`
 
-Responsibility: serve `config.output_dir` over HTTP using stdlib `http.server`. No watching, no live reload (see TODO).
+Responsibility: serve `config.output_dir` over HTTP using stdlib `http.server`. No watching, no live reload (see TODO). Raises `ServeError` if the output directory does not exist (user hasn't run `build` yet).
 
 ```python
 def serve(root_dir: Path, port: int) -> None
@@ -259,7 +268,7 @@ def serve(root_dir: Path, port: int) -> None
 
 ### `init_cmd.py`
 
-Responsibility: scaffold a new site. Refuses to run if `sitegen3.toml` already exists in the target directory. Copies files from `src/sitegen3/scaffold/` to the target via `importlib.resources`.
+Responsibility: scaffold a new site. Raises `InitError` if `sitegen3.toml` already exists in the target directory. Copies files from `src/sitegen3/scaffold/` to the target via `importlib.resources`.
 
 ```python
 def init(root_dir: Path) -> None
@@ -371,6 +380,8 @@ config    ──► exceptions      (raises ConfigError)
 discovery ──► exceptions      (raises DiscoveryError)
 loader    ──► exceptions      (raises LoaderError)
 templates ──► exceptions      (raises RenderError, wraps jinja2.TemplateError)
+serve     ──► exceptions      (raises ServeError)
+init_cmd  ──► exceptions      (raises InitError)
 models    has no internal dependencies
 exceptions has no internal dependencies
 ```
@@ -400,8 +411,8 @@ All modules use `logging.getLogger(__name__)`. No module configures handlers —
 
 Two tiers, matching SPEC §Per-page resilience:
 
-- **Fatal**: missing `sitegen3.toml`, missing input directory, missing `about.md`, missing required config fields. Raised as `ConfigError` from `config.load_config` or `DiscoveryError` from `discovery.find_about` — both subclasses of `SitegenError`. Caught at the `cli` boundary as `SitegenError`, logged at `ERROR`, exit code 1.
-- **Per-page**: any `PageError` raised during load or render of a post or project. `build.py` catches `PageError` in two separate loops — the load loop (`LoaderError` from `loader.py`) and the render loop (`RenderError` from `templates.py`, which wraps `jinja2.TemplateError`). Both result in a logged `WARNING` and a skip. `load_about` is called outside both guards; its failure propagates up to the `SitegenError` catch at the CLI boundary.
+- **Fatal**: any direct `SitegenError` subclass outside the `PageError` branch — `ConfigError` (missing `sitegen3.toml`, missing input directory, missing required config fields), `DiscoveryError` (missing `about.md`), `InitError` (`sitegen3.toml` already exists on `init`), `ServeError` (output directory missing on `serve`). Caught at the `cli` boundary as `SitegenError`, logged at `ERROR`, exit code 1.
+- **Per-page**: any `PageError` raised during load or render of a post or project. `build.py` catches `PageError` in two separate loops — the load loop (`LoaderError` from `loader.py`) and the render loop (`RenderError` from `templates.py`, which wraps `jinja2.TemplateError`). Both result in a logged `WARNING` and a skip. About handling is exempt: `load_about` and the About `render_template` call both sit outside the per-page guards, so any failure on the about page propagates as fatal to the CLI boundary.
 
 `about.md` failures are treated as **fatal** — there is no site without an about page.
 
@@ -494,7 +505,7 @@ Three tiers:
 | `frontmatter` | Yes | Unit | Parametrized: no delimiter, unterminated delimiter, valid TOML, empty frontmatter, body preserved verbatim. |
 | `slug` | Yes | Unit | Parametrized across the 5-step pipeline: mixed case, spaces, punctuation, non-ASCII, collapsed/edge hyphens. |
 | `discovery` | Yes | Integration | Missing `about.md` raises fatal; empty `posts/` and `projects/` return empty lists; returned paths match files on disk. |
-| `loader` | Yes | Integration | Valid files → model; malformed TOML and missing required fields raise `LoaderError`; `draft: true` is handled per SPEC. |
+| `loader` | Yes | Integration | Valid files → model; malformed TOML, unterminated frontmatter, missing required fields, and wrong TOML types (e.g., `created_at` as a quoted string instead of a bare date) all raise `LoaderError`; `draft: true` is handled per SPEC. |
 | `markdown_renderer` | Yes | Unit | Smoke: plain text, fenced code block, table. |
 | `templates` | Yes | Unit | Behavioural assertion on the escape contract: given `body_html = "<p>hello</p>"` and `title = "<script>alert(1)</script>"`, the rendered output contains a real `<p>hello</p>` (`body_html` passes through `\|safe`) AND an escaped `&lt;script&gt;` (`title` went through autoescape). Guards both directions. |
 | `writer` | Yes | Integration | `wipe_output`, `write_page` (URL path → `index.html`), `copy_assets`, `copy_static` on `tmp_path`. |
