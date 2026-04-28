@@ -462,7 +462,7 @@ def test_escape_contract_body_safe_and_title_escaped() -> None:
 
 This single test guards both directions of the escape contract. Add additional tests for each template only if you find a tricky case — the escape contract is the one that matters.
 
-Also add a smoke test that `render_template` raises `RenderError` (not `jinja2.TemplateError`) when the template name is unknown or a required context key is missing.
+Also add a smoke test that `render_template` raises `RenderError` (not `jinja2.TemplateError`) when the template name is unknown. (Missing context keys silently render empty under Jinja2's default `Undefined` — do not test that case here.)
 
 ### Verification
 
@@ -602,7 +602,7 @@ def copy_static(root_dir: Path, output_dir: Path) -> None
 ```
 
 **Contracts.**
-- `wipe_output`: if `output_dir` exists, remove its entire contents (including subdirectories). Then ensure `output_dir` itself exists. Use `shutil.rmtree` + `mkdir(parents=True, exist_ok=True)` — do **not** delete `output_dir` and recreate it (that could race with an open shell `cd`).
+- `wipe_output`: if `output_dir` exists, remove its entire contents (including subdirectories). Then ensure `output_dir` itself exists. Use `shutil.rmtree` + `mkdir(parents=True, exist_ok=True)` — do **not** delete `output_dir` and recreate it (that could race with an open shell `cd`). Log `INFO("wiping output directory: %s", output_dir)` before removing.
 - `write_page`: `url_path` must start **and** end with `/`. Mapping:
   - `/` → `<output_dir>/index.html`
   - `/posts/foo/` → `<output_dir>/posts/foo/index.html`
@@ -655,6 +655,7 @@ def build(root_dir: Path) -> None
 
 **Pipeline order (exact).**
 1. `load_config(root_dir)` → `Config` (fatal errors propagate).
+1a. Log `INFO("building site: input=%s output=%s", config.input_dir, config.output_dir)`.
 2. `wipe_output(config.output_dir)`.
 3. `find_about(input_dir)` → `Path`; `load_about(path)` → `About`. Both are fatal on failure.
 4. `find_posts(input_dir)` → `list[Path]`. For each path: try `load_post(path)`. On `PageError`, log `WARNING("skipping %s: %s", path, e)`, increment `skipped`, continue.
@@ -663,14 +664,12 @@ def build(root_dir: Path) -> None
 7. Check for slug collisions within posts (and separately within projects). On collision, raise `DiscoveryError("slug collision: %s and %s both normalize to %s", path_a, path_b, slug)` — fatal.
 8. Sort posts and projects: primary key `created_at` **descending** (newest first); tiebreaker `slug` **ascending**.
 9. Render About via `render_template("about.html.j2", ...)` → `write_page(output_dir, "/", html)`. **Not** wrapped in a `PageError` guard. Any failure is fatal.
-10. For each post: try `render_template("post.html.j2", ...)` and `write_page(..., f"/posts/{post.slug}/", html)`. On `RenderError` (or `LoaderError` from a late failure), log `WARNING`, increment `skipped`, continue.
+10. For each post: try `render_template("post.html.j2", ...)` and `write_page(..., f"/posts/{post.slug}/", html)`. On `RenderError`, log `WARNING`, increment `skipped`, continue. On success, log `DEBUG("rendered post: %s → /posts/%s/", post.source_path, post.slug)`.
 11. Render the post listing via `render_template("posts.html.j2", ...)` → `write_page(output_dir, "/posts/", html)`.
-12. Same for projects (individual pages + listing page).
+12. Same for projects (individual pages + listing page). Per-project success: `DEBUG("rendered project: %s → /projects/%s/", project.source_path, project.slug)`.
 13. `copy_assets(input_dir, output_dir)`.
 14. `copy_static(root_dir, output_dir)`.
 15. Log summary: `INFO("build complete: rendered=%d skipped=%d", rendered, skipped)`.
-
-Start-of-build `INFO` log: `INFO("building site: input=%s output=%s", input_dir, output_dir)`.
 
 **Fixture site contents.**
 
