@@ -43,8 +43,9 @@ An ordered work queue for building `sitegen3`. Each task is self-contained and s
 - `src/sitegen3/__init__.py` (empty)
 - `src/sitegen3/templates/` (directory placeholder, e.g. `.gitkeep` — filled in Task 7)
 - `src/sitegen3/scaffold/` (directory placeholder — filled in Task 13)
-- `tests/__init__.py` (empty — or omit; `tests/` is not a package, `pyproject` sets `testpaths`)
 - `tests/conftest.py` (minimal; shared fixtures are added in later tasks as needed)
+
+Do **not** create `tests/__init__.py` — with the `src/` layout and `testpaths = ["tests"]`, `tests/` is a test root, not a package. Adding `__init__.py` forces pytest's `importlib` mode subtleties and can mask import collisions; the standard layout omits it.
 
 **`pyproject.toml` must specify.**
 - Project metadata: name `sitegen3`, Python `>=3.12`.
@@ -377,6 +378,8 @@ Cache `_env` at module level (import time). It does not depend on `Config`.
 
 Templates use `base.html.j2` via `{% extends %}`. The render context is a plain `dict` built inline at the call site (no `RenderContext` wrapper).
 
+**`base.html.j2` — page shell.** Mirrors the structure of `design/index.html`: `<html lang="en">`, `<head>` containing `<meta charset>`, `<meta viewport>`, `<title>{{ page_title }}</title>`, and `<link rel="stylesheet" href="/style.css">`; `<body>` containing the `<nav>` (with `class="active"` applied to the matching link based on `{{ active }}`), then `{% block content %}{% endblock %}` where the design's `<main>` sits, then the conditional `{% if site_footer %}<footer><p>{{ site_footer }}</p></footer>{% endif %}`. Every other template `{% extends "base.html.j2" %}` and overrides `content` only.
+
 **Common context keys (every page).**
 - `site_title: str` — from `Config.site_title`.
 - `site_footer: str | None` — from `Config.site_footer`. If `None`, the `<footer>` element is **omitted entirely** (not rendered empty).
@@ -571,6 +574,8 @@ Type validation: if a required field is present but the wrong type (e.g., `creat
 
 When `links` is present (in `about.md` or in projects), each item must be a TOML table with both `label` (string) and `url` (string). Missing keys, wrong types, or non-table items → `LoaderError` naming the offending entry (e.g., `"projects/x.md: links[0] must be a table with 'label' and 'url' (string), got str"`).
 
+When `tags` is present (in projects), each item must be a string. Mixed-type or non-string items → `LoaderError` naming the offending entry (e.g., `"projects/x.md: tags[1] must be a string, got int"`).
+
 Unknown keys are ignored silently.
 
 All `LoaderError` messages should name the field and the expected type, e.g., `"posts/x.md: 'created_at' is required"` or `"posts/x.md: 'created_at' must be a date (YYYY-MM-DD), got str"`.
@@ -584,6 +589,7 @@ All `LoaderError` messages should name the field and the expected type, e.g., `"
 - `draft: true` is honoured (the model's `draft` field is `True`; filtering happens in `build.py`, not here).
 - `About.links` parses to `list[Link]` (verify one round-trip).
 - Malformed `links` entry (e.g., a string instead of a table, or a table missing `url`) → `LoaderError` naming the entry.
+- Malformed `tags` entry (e.g., `tags = [1, 2]` or `tags = ["ok", 3]`) → `LoaderError` naming the entry.
 - `Project.links`, `Project.tags` default to `[]` when absent.
 - `updated_at` is `None` when absent.
 
@@ -653,9 +659,9 @@ Use `caplog` fixture to assert `INFO` log messages on the "missing directory" br
 - `tests/test_build.py`
 - `tests/fixtures/sample_site/sitegen3.toml`
 - `tests/fixtures/sample_site/content/about.md`
-- `tests/fixtures/sample_site/content/posts/<valid-post>.md`
+- `tests/fixtures/sample_site/content/posts/hello-world.md`
 - `tests/fixtures/sample_site/content/posts/broken.md` — **intentionally malformed TOML**
-- `tests/fixtures/sample_site/content/projects/<valid-project>.md`
+- `tests/fixtures/sample_site/content/projects/sample.md`
 - `tests/fixtures/sample_site/static/style.css`
 
 **Responsibility (from ARCHITECTURE).** Orchestrate the full pipeline. Catch `PageError` in two places: the load loop and the render loop. Log `WARNING` with the source path; increment a local skip counter. `load_about` and the About render happen **outside** both guards — any About failure propagates as fatal. Filter drafts before sorting. Sort posts and projects newest-first by `created_at`, with slug as tiebreaker. After filtering, check for slug collisions within each collection; on collision, raise `DiscoveryError` naming both source paths (fatal — silent overwrite would cause data loss). Log the final summary: total rendered, total skipped.
@@ -685,6 +691,21 @@ def build(root_dir: Path) -> None
 15. Log summary: `INFO("build complete: rendered=%d skipped=%d", rendered, skipped)`.
 
 Start-of-build `INFO` log: `INFO("building site: input=%s output=%s", input_dir, output_dir)`.
+
+**Context dict construction.** Each `render_template` call takes a plain `dict` built inline. Combine the common keys (Task 7 §Common context keys) with the per-template keys (Task 7 §Per-template context). Example for the post-detail render:
+
+```python
+ctx: dict[str, Any] = {
+    "site_title": config.site_title,
+    "site_footer": config.site_footer,
+    "active": "posts",
+    "page_title": f"{post.title} — {config.site_title}",
+    "post": post,
+}
+html = render_template("post.html.j2", ctx)
+```
+
+Build the other four contexts the same way, using the per-page values from Task 7's `active` / `page_title` table and adding the per-template extra (`body_html` + `links` for about, `posts` for the listing, `project` for project detail, `projects` for the project listing).
 
 **Fixture site contents.**
 
@@ -781,7 +802,7 @@ def init(root_dir: Path) -> None
 ```
 
 **Scaffold file contents.**
-- `sitegen3.toml` — placeholder values: `[site] title = "My Site"`, `footer = "© {year} My Name"`, `[paths] input = "content"`, `output = "public"`.
+- `sitegen3.toml` — placeholder values: `[site] title = "My Site"`, `footer = "© 2026 My Name"`, `[paths] input = "content"`, `output = "public"`. The footer is a plain literal string — no template placeholders or runtime substitution. The user edits both `title` and `footer` after scaffolding.
 - `content/about.md` — frontmatter with one placeholder link, one-paragraph body.
 - `content/assets/.gitkeep` — empty file.
 - `content/posts/hello-world.md` — valid post frontmatter (`title`, `created_at`), short body.
