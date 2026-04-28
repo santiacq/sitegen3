@@ -216,7 +216,7 @@ The visual styling is authoritative in `design/`. The *data shown* on each page 
 | Project listing (`/projects/`) | One entry per non-draft project: `title`, `description`, `created_at`, `tags` |
 | Project detail (`/projects/<slug>/`) | `title`, `created_at`, `updated_at` (if set), `tags`, `links`, rendered Markdown body |
 
-- **Navigation** (top, every page): site title on the left, the three fixed links **About** / **Posts** / **Projects** on the right.
+- **Navigation** (top, every page): site title on the left, the three fixed lowercase links `about` / `posts` / `projects` on the right.
 - **Footer** (bottom, every page): `site.footer` text if set; otherwise the footer element is omitted entirely.
 
 Slugs are derived from the Markdown filename (without the `.md` extension) with the following normalization pipeline:
@@ -382,7 +382,7 @@ Key design properties:
 - **Theme**: Dark background (`#111`) with light gray text (`#ccc`) and a sage green accent (`#5fba7d`)
 - **Typography**: Monospace only — IBM Plex Mono / Fira Code / SF Mono stack
 - **Layout**: Centered single-column, max-width 640px, responsive at 480px
-- **Navigation**: Site title (from `site.title`) on the left; three nav links on the right with fixed labels **About** (→ `/`), **Posts** (→ `/posts/`), **Projects** (→ `/projects/`). Labels are not configurable.
+- **Navigation**: Site title (from `site.title`) on the left; three nav links on the right with fixed lowercase labels `about` (→ `/`), `posts` (→ `/posts/`), `projects` (→ `/projects/`). Labels are not configurable.
 
 Design files:
 

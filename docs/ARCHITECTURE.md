@@ -474,7 +474,7 @@ The canonical checks a change must pass before being considered done:
 ```
 ruff format .        # format
 ruff check --fix .   # lint (auto-fix what can be fixed)
-pyright src/         # type check (strict mode)
+pyright              # type check (strict mode; include = ["src", "tests"] in pyproject)
 pytest               # run tests
 ```
 

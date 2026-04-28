@@ -26,7 +26,7 @@ An ordered work queue for building `sitegen3`. Each task is self-contained and s
    ```
    ruff format .
    ruff check --fix .
-   pyright src/ tests/
+   pyright
    pytest
    ```
    New tests added in the task pass. No existing tests regress.
@@ -56,18 +56,18 @@ An ordered work queue for building `sitegen3`. Each task is self-contained and s
 
 **`[tool.ruff]`.** Enable rule groups: `E`, `F`, `W`, `I`, `B`, `UP`, `SIM`, `RUF`. `ruff format` is the canonical formatter. Target Python 3.12.
 
-**`[tool.pyright]`.** Strict mode (`typeCheckingMode = "strict"`). Include `src/` and `tests/`.
+**`[tool.pyright]`.** Strict mode (`typeCheckingMode = "strict"`); `include = ["src", "tests"]` so a bare `pyright` invocation covers both trees.
 
 **`[tool.pytest.ini_options]`.** `testpaths = ["tests"]`, `addopts = "-ra --strict-markers"`.
 
-**Tests.** No behavioural tests in this task. The four verification commands must still run successfully (pytest with zero collected tests exits 5; configure to treat that as success for now, or add a single trivial `tests/test_smoke.py` with `def test_truthy() -> None: assert True`).
+**Tests.** No behavioural tests in this task. Pytest exits 5 when zero tests are collected, which fails the verification gate — add `tests/test_smoke.py` with `def test_truthy() -> None: assert True` so the gate is green. Delete it once Task 3 lands the first real test.
 
 **Verification.**
 ```
 poetry install
 ruff format .
 ruff check --fix .
-pyright src/ tests/
+pyright
 pytest
 ```
 
@@ -149,7 +149,7 @@ class RenderError(PageError): ...          # Raised by templates.py (wraps jinja
 ```
 ruff format .
 ruff check --fix .
-pyright src/ tests/
+pyright
 pytest
 ```
 Plus: `python -c "from sitegen3.models import Config, Post, Project, About, Link; from sitegen3.exceptions import SitegenError, ConfigError, DiscoveryError, InitError, ServeError, PageError, LoaderError, RenderError"` succeeds.
@@ -220,15 +220,16 @@ def parse(text: str) -> tuple[dict[str, Any], str]
 
 **Key rules (from SPEC §Frontmatter Format).**
 - Delimiter is `+++` on its own line (opening and closing).
+- The opening delimiter is recognized **only** when the file's first line is exactly `+++` (no leading/trailing whitespace, no characters before or after). If the first line is anything else, the file has no frontmatter — return `({}, <full text>)` even if `+++` appears elsewhere in the body.
+- If the first line is `+++` and no later line is exactly `+++`, raise `ValueError`.
 - Frontmatter body between the delimiters is TOML; parse with `tomllib` from the stdlib.
-- If the file contains no `+++` delimiter at all, return `({}, <full text>)`.
-- If the opening `+++` is present but the closing `+++` is missing, raise `ValueError`.
 - Raw HTML inside the Markdown body is left untouched (no sanitization — the frontmatter module doesn't touch the body content beyond splitting).
 - Unknown keys in frontmatter are silently ignored at parse time (natural stdlib TOML behaviour; validation lives in `loader`).
 
 **Tests (unit, parametrized where natural).** Cover:
 - No delimiter at all → empty dict, body equals full input.
-- Opening delimiter present, closing absent → `ValueError` (`pytest.raises(ValueError, match=...)`).
+- First line is not `+++` but body contains `+++` later → empty dict, body equals full input (no frontmatter recognized).
+- First line is `+++`, no closing `+++` anywhere → `ValueError` (`pytest.raises(ValueError, match=...)`).
 - Valid frontmatter + body → dict parsed, body string preserved exactly (including any trailing newline behaviour you commit to).
 - Empty frontmatter block (`+++\n+++\n<body>`) → empty dict, body returned.
 - Body that itself contains `+++` lines after the closing delimiter is **not** re-split — only the first opening + first closing count.
@@ -313,11 +314,11 @@ Parse with stdlib `tomllib` (binary read mode: `path.open("rb")`).
 def configure_logging() -> None
 ```
 
-**Implementation note.** Use `logging.basicConfig(stream=sys.stderr, level=logging.INFO, format=...)` or equivalent. Keep it idempotent-safe if called twice in one process (tests may trigger this).
+**Implementation note.** Use `logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(levelname)s: %(message)s")`. `basicConfig` is naturally idempotent (no-op when handlers already exist on the root logger), so calling it twice in one process is safe.
 
 **Tests (integration, for `config.py` only).** Use `tmp_path`:
 - Happy path: write a valid `sitegen3.toml`, create `content/` directory, call `load_config(tmp_path)`, assert the returned `Config` fields — absolute paths, title, footer.
-- Defaults: omit `[paths]`, confirm defaults (`content`, `public`) are resolved.
+- Defaults: omit `[paths]`, confirm defaults (`content`, `public`) are resolved. Also create `tmp_path / "content"` first, since `load_config` checks input-dir existence and would otherwise raise.
 - Missing `sitegen3.toml` → `ConfigError`.
 - Missing `site.title` → `ConfigError`.
 - Missing input directory on disk → `ConfigError`.
@@ -379,8 +380,18 @@ Templates use `base.html.j2` via `{% extends %}`. The render context is a plain 
 **Common context keys (every page).**
 - `site_title: str` — from `Config.site_title`.
 - `site_footer: str | None` — from `Config.site_footer`. If `None`, the `<footer>` element is **omitted entirely** (not rendered empty).
-- `active: str` — one of `"about"`, `"posts"`, `"projects"`. The matching nav link gets the `active` class.
+- `active: str` — one of `"about"`, `"posts"`, `"projects"`. The matching nav `<a>` gets `class="active"` (matching the design's class name).
 - `page_title: str` — the `<title>` tag content.
+
+**Per-page values for `active` and `page_title`** (constructed inline in `build.py` at the moment each template is rendered):
+
+| Page | `active` | `page_title` |
+|---|---|---|
+| About (`/`) | `"about"` | `site_title` |
+| Post listing (`/posts/`) | `"posts"` | `f"Posts — {site_title}"` |
+| Post detail (`/posts/<slug>/`) | `"posts"` | `f"{post.title} — {site_title}"` |
+| Project listing (`/projects/`) | `"projects"` | `f"Projects — {site_title}"` |
+| Project detail (`/projects/<slug>/`) | `"projects"` | `f"{project.title} — {site_title}"` |
 
 **Per-template context.**
 
@@ -405,8 +416,8 @@ The HTML files under `design/` are the visual and markup source of truth. The Ji
 - `design/project.html` → `project.html.j2`
 
 **Adaptations required** (the design files are mock content; your templates render real content):
-- The design nav uses `href="index.html"`, `href="posts.html"`, `href="projects.html"`. Templates must use the **root-relative** URLs from SPEC: `/`, `/posts/`, `/projects/`. Nav link labels are fixed and not configurable: **About**, **Posts**, **Projects**.
-- The design nav site-title text is hardcoded; in templates, use `{{ site_title }}`.
+- The design nav uses `href="index.html"`, `href="posts.html"`, `href="projects.html"`. Templates must use the **root-relative** URLs from SPEC: `/`, `/posts/`, `/projects/`. Nav link labels are fixed lowercase literals (matching the design): `about`, `posts`, `projects`. Not configurable.
+- The design nav site-title link uses `class="site-title"`. Templates must do the same; the link text is `{{ site_title }}`.
 - The design uses `<link rel="stylesheet" href="style.css">`. Templates must use `/style.css` (root-relative, since pages render at `/`, `/posts/<slug>/`, etc.).
 - Dates are rendered as ISO 8601: `YYYY-MM-DD` (use a Jinja filter or format the date in Python before passing to the template — prefer `{{ post.created_at.isoformat() }}` inline).
 - The design footer text is hardcoded (`© 2026 your name`). Templates must render `{{ site_footer }}` and **omit the entire `<footer>` element** when `site_footer` is falsy.
@@ -558,6 +569,8 @@ Required-field matrix (from SPEC §Frontmatter Format):
 
 Type validation: if a required field is present but the wrong type (e.g., `created_at = "2024-03-15"` as a **quoted string** rather than a bare TOML date), raise `LoaderError` — the string form becomes a `str`, not `datetime.date`, under `tomllib`, and would later crash date-based sort.
 
+When `links` is present (in `about.md` or in projects), each item must be a TOML table with both `label` (string) and `url` (string). Missing keys, wrong types, or non-table items → `LoaderError` naming the offending entry (e.g., `"projects/x.md: links[0] must be a table with 'label' and 'url' (string), got str"`).
+
 Unknown keys are ignored silently.
 
 All `LoaderError` messages should name the field and the expected type, e.g., `"posts/x.md: 'created_at' is required"` or `"posts/x.md: 'created_at' must be a date (YYYY-MM-DD), got str"`.
@@ -570,6 +583,7 @@ All `LoaderError` messages should name the field and the expected type, e.g., `"
 - Wrong type on required field (e.g., `created_at = "2024-03-15"`) → `LoaderError`.
 - `draft: true` is honoured (the model's `draft` field is `True`; filtering happens in `build.py`, not here).
 - `About.links` parses to `list[Link]` (verify one round-trip).
+- Malformed `links` entry (e.g., a string instead of a table, or a table missing `url`) → `LoaderError` naming the entry.
 - `Project.links`, `Project.tags` default to `[]` when absent.
 - `updated_at` is `None` when absent.
 
@@ -602,7 +616,7 @@ def copy_static(root_dir: Path, output_dir: Path) -> None
 ```
 
 **Contracts.**
-- `wipe_output`: if `output_dir` exists, remove its entire contents (including subdirectories). Then ensure `output_dir` itself exists. Use `shutil.rmtree` + `mkdir(parents=True, exist_ok=True)` — do **not** delete `output_dir` and recreate it (that could race with an open shell `cd`). Log `INFO("wiping output directory: %s", output_dir)` before removing.
+- `wipe_output`: if `output_dir` exists, `shutil.rmtree(output_dir)`. Then `output_dir.mkdir(parents=True, exist_ok=True)`. Log `INFO("wiping output directory: %s", output_dir)` before removing.
 - `write_page`: `url_path` must start **and** end with `/`. Mapping:
   - `/` → `<output_dir>/index.html`
   - `/posts/foo/` → `<output_dir>/posts/foo/index.html`
@@ -663,9 +677,9 @@ def build(root_dir: Path) -> None
 7. Check for slug collisions within posts (and separately within projects). On collision, raise `DiscoveryError("slug collision: %s and %s both normalize to %s", path_a, path_b, slug)` — fatal.
 8. Sort posts and projects: primary key `created_at` **descending** (newest first); tiebreaker `slug` **ascending**.
 9. Render About via `render_template("about.html.j2", ...)` → `write_page(output_dir, "/", html)`. **Not** wrapped in a `PageError` guard. Any failure is fatal.
-10. For each post: try `render_template("post.html.j2", ...)` and `write_page(..., f"/posts/{post.slug}/", html)`. On `RenderError`, log `WARNING`, increment `skipped`, continue. On success, log `DEBUG("rendered post: %s → /posts/%s/", post.source_path, post.slug)`.
+10. For each post: try `render_template("post.html.j2", ...)` and `write_page(..., f"/posts/{post.slug}/", html)`. On `PageError`, log `WARNING`, increment `skipped`, continue. On success, log `DEBUG("rendered post: %s → /posts/%s/", post.source_path, post.slug)`.
 11. Render the post listing via `render_template("posts.html.j2", ...)` → `write_page(output_dir, "/posts/", html)`.
-12. Same for projects (individual pages + listing page). Per-project success: `DEBUG("rendered project: %s → /projects/%s/", project.source_path, project.slug)`.
+12. Same for projects (individual pages + listing page). On `PageError` per-project, log `WARNING`, increment `skipped`, continue. Per-project success: `DEBUG("rendered project: %s → /projects/%s/", project.source_path, project.slug)`.
 13. `copy_assets(input_dir, output_dir)`.
 14. `copy_static(root_dir, output_dir)`.
 15. Log summary: `INFO("build complete: rendered=%d skipped=%d", rendered, skipped)`.
@@ -694,7 +708,7 @@ Populate `tests/fixtures/sample_site/` with the minimum viable site plus one int
    - `public/projects/sample/index.html` exists.
    - `public/style.css` exists.
 2. `test_build_resilience_broken_post_logs_warning_and_continues`: using `caplog`, confirm a `WARNING`-level record whose message names `broken.md` was emitted, and that the overall build succeeded (no raised exception).
-3. `test_build_slug_collision_is_fatal`: add a second post that slugifies to the same slug as `hello-world.md` (e.g., `Hello-World.md` or `hello world.md`), expect `pytest.raises(DiscoveryError, match="...")` citing both paths.
+3. `test_build_slug_collision_is_fatal`: add `Hello World.md` alongside `hello-world.md` (both slugify to `hello-world`, and the two filenames coexist on case-sensitive and case-insensitive filesystems). Expect `pytest.raises(DiscoveryError, match="...")` citing both paths.
 4. `test_build_missing_about_is_fatal`: remove `about.md` from the copied fixture, expect `DiscoveryError` (the fatal branch from `find_about`).
 
 Use `shutil.copytree` to copy the fixture tree into `tmp_path` at the start of each test — fixtures stay immutable on disk.
@@ -725,9 +739,9 @@ def serve(root_dir: Path, port: int) -> None
 **Implementation outline.**
 1. `config = load_config(root_dir)`.
 2. If `config.output_dir` does not exist → `raise ServeError(f"output directory {config.output_dir} does not exist; run 'sitegen3 build' first")`.
-3. `os.chdir(config.output_dir)` (or use `functools.partial(SimpleHTTPRequestHandler, directory=str(config.output_dir))` if you prefer to avoid chdir — both are stdlib-supported).
+3. Bind the handler to the output directory with `functools.partial(SimpleHTTPRequestHandler, directory=str(config.output_dir))`. Do **not** use `os.chdir` — it mutates global process state and breaks programmatic / test reuse.
 4. Log `INFO("serving %s on http://127.0.0.1:%d", config.output_dir, port)`.
-5. Start `http.server.HTTPServer(("127.0.0.1", port), SimpleHTTPRequestHandler).serve_forever()`.
+5. Start `http.server.HTTPServer(("127.0.0.1", port), handler).serve_forever()`.
 
 **Key rule.** Bind to `127.0.0.1`, **not** the default `0.0.0.0` — preview must not be exposed on the LAN.
 
