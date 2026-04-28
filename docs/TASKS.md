@@ -655,7 +655,6 @@ def build(root_dir: Path) -> None
 
 **Pipeline order (exact).**
 1. `load_config(root_dir)` → `Config` (fatal errors propagate).
-1a. Log `INFO("building site: input=%s output=%s", config.input_dir, config.output_dir)`.
 2. `wipe_output(config.output_dir)`.
 3. `find_about(input_dir)` → `Path`; `load_about(path)` → `About`. Both are fatal on failure.
 4. `find_posts(input_dir)` → `list[Path]`. For each path: try `load_post(path)`. On `PageError`, log `WARNING("skipping %s: %s", path, e)`, increment `skipped`, continue.
@@ -670,6 +669,8 @@ def build(root_dir: Path) -> None
 13. `copy_assets(input_dir, output_dir)`.
 14. `copy_static(root_dir, output_dir)`.
 15. Log summary: `INFO("build complete: rendered=%d skipped=%d", rendered, skipped)`.
+
+Start-of-build `INFO` log: `INFO("building site: input=%s output=%s", input_dir, output_dir)`.
 
 **Fixture site contents.**
 

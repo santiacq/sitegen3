@@ -516,7 +516,7 @@ Three tiers:
 
 ### Fixtures
 
-- `tests/conftest.py` holds shared fixtures: a `sample_config` factory producing a `Config` pointing at `tmp_path`, helpers to write sample posts and projects, and a helper to read output files.
+- `tests/conftest.py` starts minimal. Each test module creates its own fixtures inline using `tmp_path` — no shared `Config` factory or file-writing helpers are needed, since integration tests write real TOML and call the actual loaders. Add shared fixtures here only if a helper is used across three or more test files.
 - `tests/fixtures/sample_site/` is a minimal but complete site tree used by the end-to-end build test. It contains exactly: `sitegen3.toml`, `content/about.md`, one valid post, one valid project, **one broken post** (malformed TOML) to exercise per-page resilience, and a `static/style.css`.
 - Never mock filesystem APIs. Use `tmp_path` and write real files. Mocks on I/O mask the integration failures these tests exist to catch.
 
