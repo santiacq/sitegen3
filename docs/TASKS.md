@@ -943,6 +943,7 @@ Per ARCHITECTURE §Testing, `serve` is otherwise marked "No" tests — thin wrap
 **Verification.** The four-command gate.
 
 **Done when.** `serve` raises `ServeError` on missing output and is a straight wrapper around `http.server` when the output exists.
+**Status:** DONE
 
 ---
 
