@@ -302,6 +302,7 @@ Exact HTML byte-equality is brittle; assert on substring presence instead.
 **Verification.** The four-command gate.
 
 **Done when.** `render` returns HTML with the two extensions active, smoke tests pass.
+**Status:** DONE
 
 ---
 
