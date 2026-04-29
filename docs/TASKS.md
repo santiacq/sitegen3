@@ -267,6 +267,7 @@ def parse(text: str) -> tuple[dict[str, Any], str]
 **Verification.** The four-command gate.
 
 **Done when.** All parametrized cases pass; `ValueError` raised on unterminated frontmatter; body preservation is exact.
+**Status:** DONE
 
 ---
 
