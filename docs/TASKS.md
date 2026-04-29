@@ -768,6 +768,7 @@ Use `caplog` fixture to assert `INFO` log messages on the "missing directory" br
 **Verification.** The four-command gate.
 
 **Done when.** All four writer functions behave per contract and their edge cases (missing directories, nested paths) are covered by tests.
+**Status:** DONE
 
 ---
 
