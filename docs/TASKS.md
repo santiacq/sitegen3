@@ -1051,6 +1051,7 @@ ls /tmp/sitegen3-smoke/public/        # index.html, style.css, posts/, projects/
 ```
 
 **Done when.** `sitegen3 --help` and all three subcommands show the expected help; dispatch tests pass; fatal errors exit with code 1 and a logged `ERROR` record.
+**Status:** DONE
 
 ---
 
