@@ -404,7 +404,7 @@ Cache `_env` at module level (import time). It does not depend on `Config`.
 
 Templates use `base.html.j2` via `{% extends %}`. The render context is a plain `dict` built inline at the call site (no `RenderContext` wrapper).
 
-**`base.html.j2` — page shell.** Mirrors the structure of `design/index.html`: `<html lang="en">`, `<head>` containing `<meta charset>`, `<meta viewport>`, `<title>{{ page_title }}</title>`, and `<link rel="stylesheet" href="/style.css">`; `<body>` containing the `<nav>` (with `class="active"` applied to the matching link based on `{{ active }}`), then `{% block content %}{% endblock %}` where the design's `<main>` sits, then the conditional `{% if site_footer %}<footer><p>{{ site_footer }}</p></footer>{% endif %}`. Every other template `{% extends "base.html.j2" %}` and overrides `content` only.
+**`base.html.j2` — page shell.** Mirrors the structure of `design/index.html`: `<html lang="en">`, `<head>` containing `<meta charset>`, `<meta viewport>`, `<title>{{ page_title }}</title>`, and `<link rel="stylesheet" href="/style.css">`; `<body>` containing the `<nav>` (with `class="active"` applied to the matching link based on `{{ active }}`), then `<main>{% block content %}{% endblock %}</main>` (the `<main>` landmark is owned by the base — child templates do **not** emit their own), then the conditional `{% if site_footer %}<footer><p>{{ site_footer }}</p></footer>{% endif %}`. Every other template `{% extends "base.html.j2" %}` and overrides `content` only.
 
 **Common context keys (every page).**
 - `site_title: str` — from `Config.site_title`.
@@ -533,7 +533,7 @@ Every page has the same navigation bar (top) and footer (bottom). The content be
 | About (`/`) | Rendered Markdown body, `links` (as a list) |
 | Post listing (`/posts/`) | One entry per non-draft post: `title`, `created_at` |
 | Post detail (`/posts/<slug>/`) | `title`, `created_at`, `updated_at` (if set), rendered Markdown body |
-| Project listing (`/projects/`) | One entry per non-draft project: `title`, `description`, `created_at`, `tags` |
+| Project listing (`/projects/`) | One entry per non-draft project: `title`, `description`, `tags` |
 | Project detail (`/projects/<slug>/`) | `title`, `created_at`, `updated_at` (if set), `tags`, `links`, rendered Markdown body |
 
 Render exactly these fields and no others.
@@ -661,7 +661,7 @@ Read the file with `path.read_text(encoding="utf-8")`. Split via `frontmatter.pa
 Required-field matrix (from SPEC §Frontmatter Format):
 
 - **`about.md`**: no required fields.
-  - `links` (array of `{label, url}`) — optional.
+  - `links` (array of `{label, url}`) — optional, default `[]`. Since `About.links` is typed `list[Link]` with no default on the dataclass, the loader must always pass a concrete list — `[]` when the key is absent.
 - **Posts** (`posts/*.md`):
   - `title` (string) — **required**.
   - `created_at` (TOML date, i.e. bare `YYYY-MM-DD`, parsed to `datetime.date`) — **required**.
@@ -697,6 +697,7 @@ All `LoaderError` messages should name the field and the expected type, e.g., `"
 - Datetime where a date is expected (`created_at = 2024-03-15T10:00:00`) → `LoaderError` matching `r"got datetime"`.
 - `draft: true` is honoured (the model's `draft` field is `True`; filtering happens in `build.py`, not here).
 - `About.links` parses to `list[Link]` (verify one round-trip).
+- `About.links` defaults to `[]` when the `links` key is absent (and when the file has no frontmatter at all).
 - `links` is the wrong top-level type (e.g., `links = "not an array"`) → `LoaderError` matching `r"'links' must be an array"`.
 - Malformed `links` entry (e.g., a string instead of a table, or a table missing `url`) → `LoaderError` naming the entry.
 - `tags` is the wrong top-level type (e.g., `tags = "single"`) → `LoaderError` matching `r"'tags' must be an array"`.
@@ -797,8 +798,8 @@ def build(root_dir: Path) -> None
 8. Sort posts and projects: primary key `created_at` **descending** (newest first); tiebreaker `slug` **ascending**.
 9. Render About via `render_template("about.html.j2", ...)` → `write_page(output_dir, "/", html)`. **Not** wrapped in a `PageError` guard. Any failure is fatal.
 10. For each post: try `render_template("post.html.j2", ...)` and `write_page(..., f"/posts/{post.slug}/", html)`. On `PageError`, log `WARNING`, increment `skipped`, continue. On success, log `DEBUG("rendered post: %s → /posts/%s/", post.source_path, post.slug)`.
-11. Render the post listing via `render_template("posts.html.j2", ...)` → `write_page(output_dir, "/posts/", html)`.
-12. Same for projects (individual pages + listing page). On `PageError` per-project, log `WARNING`, increment `skipped`, continue. Per-project success: `DEBUG("rendered project: %s → /projects/%s/", project.source_path, project.slug)`.
+11. Render the post listing via `render_template("posts.html.j2", ...)` → `write_page(output_dir, "/posts/", html)`. **Not** wrapped in a `PageError` guard — listing renders are fatal on failure (a broken listing template is a build-blocking bug, not a content-author bug; per-page resilience exists for individual content files only).
+12. Same for projects (individual pages + listing page). The per-project loop in Step 12a is wrapped in try/except like Step 10; the projects-listing render in Step 12b is **not** wrapped, same rationale as Step 11. On `PageError` per-project, log `WARNING`, increment `skipped`, continue. Per-project success: `DEBUG("rendered project: %s → /projects/%s/", project.source_path, project.slug)`.
 13. `copy_assets(input_dir, output_dir)`.
 14. `copy_static(root_dir, output_dir)`.
 15. Log summary: `INFO("build complete: rendered=%d skipped=%d", rendered, skipped)`.
