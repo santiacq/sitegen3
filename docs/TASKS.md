@@ -638,6 +638,7 @@ def find_projects(input_dir: Path) -> list[Path]
 **Verification.** The four-command gate.
 
 **Done when.** All discovery functions return the correct paths; missing `about.md` is fatal; non-`.md` entries and subdirectories are ignored.
+**Status:** DONE
 
 ---
 
