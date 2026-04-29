@@ -87,6 +87,7 @@ unzip -l dist/sitegen3-*.whl | grep -E '(templates|scaffold)'
 The final two commands confirm the templates and scaffold trees actually land in the wheel. If `unzip -l` doesn't show files under `sitegen3/templates/` and `sitegen3/scaffold/`, the package-data config above is wrong — fix it before continuing. (The templates tree is empty until Task 7 and the scaffold tree is empty until Task 13, so right after Task 1 the grep will only match directories — which is enough to confirm the include patterns are honoured. Re-run after Task 13 to confirm content files ship too.)
 
 **Done when.** `poetry install` succeeds. All four checks pass. `python -c "import sitegen3"` works from the project root. `poetry build` produces a wheel whose manifest lists the `templates/` and `scaffold/` paths under `sitegen3/`.
+**Status:** DONE
 
 ---
 
