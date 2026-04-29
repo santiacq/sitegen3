@@ -171,6 +171,7 @@ pytest
 Plus: `python -c "from sitegen3.models import Config, Post, Project, About, Link; from sitegen3.exceptions import SitegenError, ConfigError, DiscoveryError, InitError, ServeError, PageError, LoaderError, RenderError"` succeeds.
 
 **Done when.** All dataclasses frozen; all exception classes defined; pyright strict passes.
+**Status:** DONE
 
 ---
 
