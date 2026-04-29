@@ -905,6 +905,7 @@ Use `shutil.copytree` to copy the fixture tree into `tmp_path` at the start of e
 **Verification.** The four-command gate.
 
 **Done when.** `build()` produces the expected output tree for the fixture site, the broken post is skipped (not fatal), slug collisions and missing about are fatal, summary line is logged.
+**Status:** DONE
 
 ---
 
