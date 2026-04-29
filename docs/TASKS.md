@@ -718,6 +718,7 @@ Use `pytest.mark.parametrize` where the shape repeats.
 **Verification.** The four-command gate.
 
 **Done when.** Each of the three loaders produces the right model for valid input and raises `LoaderError` (never leaking `ValueError` or `TOMLDecodeError`) for every invalid case.
+**Status:** DONE
 
 ---
 
