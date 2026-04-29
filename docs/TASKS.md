@@ -218,6 +218,7 @@ Use `pytest.mark.parametrize` over a `for` loop.
 **Verification.** The four-command gate (see Global Conventions §8).
 
 **Done when.** `slugify` exists, handles all parametrized cases, pyright strict passes, tests green.
+**Status:** DONE
 
 ---
 
