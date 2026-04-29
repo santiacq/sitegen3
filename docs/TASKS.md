@@ -597,6 +597,7 @@ The four-command gate. Additionally, spot-check one rendered template by hand if
 ### Done when
 
 All six templates exist, extend `base.html.j2`, and render the exact fields listed in the rendered-field contract. `render_template` wraps `jinja2` errors as `RenderError`. The escape contract test passes. `style.css` is in place at `src/sitegen3/scaffold/static/style.css`.
+**Status:** DONE
 
 ---
 

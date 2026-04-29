@@ -1,0 +1,12 @@
+{% extends "base.html.j2" %}
+{% block content %}
+<h1>posts</h1>
+<ul class="post-list">
+  {% for post in posts %}
+  <li>
+    <span class="date">{{ post.created_at.isoformat() }}</span>
+    <a href="/posts/{{ post.slug }}/">{{ post.title }}</a>
+  </li>
+  {% endfor %}
+</ul>
+{% endblock %}

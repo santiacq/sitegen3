@@ -1,0 +1,11 @@
+{% extends "base.html.j2" %}
+{% block content %}
+<h1>projects</h1>
+{% for project in projects %}
+<div class="project">
+  <h3><a href="/projects/{{ project.slug }}/">{{ project.title }}</a></h3>
+  <p>{{ project.description }}</p>
+  {% if project.tags %}<span class="tags">{{ project.tags | join(" · ") }}</span>{% endif %}
+</div>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends "base.html.j2" %}
+{% block content %}
+<article>
+  <header class="post-header">
+    {% if project.tags %}<span class="tags">{{ project.tags | join(" · ") }}</span>{% endif %}
+    <h1>{{ project.title }}</h1>
+    <span class="date">{{ project.created_at.isoformat() }}</span>
+    {% if project.updated_at %}<span class="updated">updated {{ project.updated_at.isoformat() }}</span>{% endif %}
+  </header>
+  {% if project.links %}
+  <div class="project-links">
+    {% for link in project.links %}<a href="{{ link.url }}">{{ link.label }}</a>{% if not loop.last %} · {% endif %}{% endfor %}
+  </div>
+  {% endif %}
+  <div class="post-body">{{ project.body_html | safe }}</div>
+  <footer class="post-footer"><a href="/projects/">&larr; back to projects</a></footer>
+</article>
+{% endblock %}

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ page_title }}</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<nav>
+  <a href="/" class="site-title">{{ site_title }}</a>
+  <a href="/"{% if active == "about" %} class="active"{% endif %}>about</a>
+  <a href="/posts/"{% if active == "posts" %} class="active"{% endif %}>posts</a>
+  <a href="/projects/"{% if active == "projects" %} class="active"{% endif %}>projects</a>
+</nav>
+
+<main>
+{% block content %}{% endblock %}
+</main>
+
+{% if site_footer %}
+<footer>
+  <p>{{ site_footer }}</p>
+</footer>
+{% endif %}
+
+</body>
+</html>

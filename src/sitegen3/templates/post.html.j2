@@ -1,0 +1,12 @@
+{% extends "base.html.j2" %}
+{% block content %}
+<article>
+  <header class="post-header">
+    <span class="date">{{ post.created_at.isoformat() }}</span>
+    {% if post.updated_at %}<span class="updated">updated {{ post.updated_at.isoformat() }}</span>{% endif %}
+    <h1>{{ post.title }}</h1>
+  </header>
+  <div class="post-body">{{ post.body_html | safe }}</div>
+  <footer class="post-footer"><a href="/posts/">&larr; back to posts</a></footer>
+</article>
+{% endblock %}

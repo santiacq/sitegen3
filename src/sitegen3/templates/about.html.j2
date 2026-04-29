@@ -1,0 +1,11 @@
+{% extends "base.html.j2" %}
+{% block content %}
+<section>
+  {{ body_html | safe }}
+  {% if links %}
+  <ul class="links">
+    {% for link in links %}<li><a href="{{ link.url }}">{{ link.label }}</a></li>{% endfor %}
+  </ul>
+  {% endif %}
+</section>
+{% endblock %}
