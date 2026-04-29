@@ -1,0 +1,7 @@
+[site]
+title = "My Site"
+footer = "© 2026 My Name"
+
+[paths]
+input = "content"
+output = "public"

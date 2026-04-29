@@ -993,6 +993,7 @@ Use `importlib.resources.as_file` + `shutil.copytree` if you want the simplest i
 **Verification.** The four-command gate.
 
 **Done when.** `init` copies the scaffold tree, refuses to overwrite, and the scaffolded site builds cleanly.
+**Status:** DONE
 
 ---
 
