@@ -361,6 +361,7 @@ Use `pytest.raises(ConfigError, match=...)` with messages that name the problem 
 **Verification.** The four-command gate.
 
 **Done when.** `load_config` returns a `Config` for valid inputs and raises `ConfigError` with informative messages for every invalid case above.
+**Status:** DONE
 
 ---
 
