@@ -52,7 +52,7 @@ sitegen3/
       content/posts/hello-world.md
       content/projects/sample-project.md
   tests/
-    conftest.py                 # Shared fixtures (sample Config, markdown helpers)
+    conftest.py                 # Minimal; per-test fixtures use tmp_path directly
     fixtures/
       sample_site/              # Minimal complete site tree for end-to-end tests
     test_cli.py

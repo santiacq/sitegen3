@@ -213,7 +213,7 @@ The visual styling is authoritative in `design/`. The *data shown* on each page 
 | About (`/`) | Rendered Markdown body, `links` (as a list) |
 | Post listing (`/posts/`) | One entry per non-draft post: `title`, `created_at` |
 | Post detail (`/posts/<slug>/`) | `title`, `created_at`, `updated_at` (if set), rendered Markdown body |
-| Project listing (`/projects/`) | One entry per non-draft project: `title`, `description`, `created_at`, `tags` |
+| Project listing (`/projects/`) | One entry per non-draft project: `title`, `description`, `tags` |
 | Project detail (`/projects/<slug>/`) | `title`, `created_at`, `updated_at` (if set), `tags`, `links`, rendered Markdown body |
 
 - **Navigation** (top, every page): site title on the left, the three fixed lowercase links `about` / `posts` / `projects` on the right.

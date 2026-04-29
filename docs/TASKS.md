@@ -53,7 +53,17 @@ Do **not** create `tests/__init__.py` — with the `src/` layout and `testpaths 
 - Dev dependencies: `ruff`, `pyright`, `pytest`.
 - `src/` layout (`packages = [{ include = "sitegen3", from = "src" }]` or equivalent).
 - Console entry point: `sitegen3 = "sitegen3.cli:main"` (the target exists as a stub in Task 14; OK to define here).
-- Include package data so templates and scaffold files ship with the wheel (Jinja via `PackageLoader`, scaffold via `importlib.resources`).
+- Include package data so templates and scaffold files ship with the wheel (Jinja via `PackageLoader`, scaffold via `importlib.resources`). Use this exact block:
+
+  ```toml
+  [tool.poetry]
+  include = [
+    "src/sitegen3/templates/**/*",
+    "src/sitegen3/scaffold/**/*",
+  ]
+  ```
+
+  Why this matters: `poetry install` does an editable install, so during development the templates and scaffold trees are reachable from the source tree even when `pyproject.toml` doesn't list them. The bug only surfaces when the wheel is built and installed elsewhere — every test can pass green and the shipped wheel still be broken. The wheel-build smoke check in **Verification** below is what catches a half-correct config.
 
 **`[tool.ruff]`.** Enable rule groups: `E`, `F`, `W`, `I`, `B`, `UP`, `SIM`, `RUF`. `ruff format` is the canonical formatter. Target Python 3.12.
 
@@ -70,9 +80,13 @@ ruff format .
 ruff check --fix .
 pyright
 pytest
+poetry build
+unzip -l dist/sitegen3-*.whl | grep -E '(templates|scaffold)'
 ```
 
-**Done when.** `poetry install` succeeds. All four checks pass. `python -c "import sitegen3"` works from the project root.
+The final two commands confirm the templates and scaffold trees actually land in the wheel. If `unzip -l` doesn't show files under `sitegen3/templates/` and `sitegen3/scaffold/`, the package-data config above is wrong — fix it before continuing. (The templates tree is empty until Task 7 and the scaffold tree is empty until Task 13, so right after Task 1 the grep will only match directories — which is enough to confirm the include patterns are honoured. Re-run after Task 13 to confirm content files ship too.)
+
+**Done when.** `poetry install` succeeds. All four checks pass. `python -c "import sitegen3"` works from the project root. `poetry build` produces a wheel whose manifest lists the `templates/` and `scaffold/` paths under `sitegen3/`.
 
 ---
 
@@ -167,6 +181,9 @@ Plus: `python -c "from sitegen3.models import Config, Post, Project, About, Link
 - `src/sitegen3/slug.py`
 - `tests/test_slug.py`
 
+**File to delete.**
+- `tests/test_smoke.py` (Task 1's placeholder; `test_slug.py` makes it redundant).
+
 **Responsibility (from ARCHITECTURE).** Normalize a filename stem into a URL slug per SPEC's 5-step pipeline.
 
 **Public interface.**
@@ -222,7 +239,9 @@ def parse(text: str) -> tuple[dict[str, Any], str]
 **Key rules (from SPEC §Frontmatter Format).**
 - Delimiter is `+++` on its own line (opening and closing).
 - The opening delimiter is recognized **only** when the file's first line is exactly `+++` (no leading/trailing whitespace, no characters before or after). If the first line is anything else, the file has no frontmatter — return `({}, <full text>)` even if `+++` appears elsewhere in the body.
+- The closing delimiter is recognized **only** when a later line is exactly `+++` (same rule as opening: no leading/trailing whitespace, no characters before or after). This mirrors the opening rule and avoids ambiguity around trailing carriage returns or Windows line endings.
 - If the first line is `+++` and no later line is exactly `+++`, raise `ValueError`.
+- The body starts at the first character of the line **following** the closing `+++` line. Trailing whitespace and newlines from the source file are preserved verbatim (no `.strip()`, no special-casing of a blank line between the closing delimiter and the body).
 - Frontmatter body between the delimiters is TOML; parse with `tomllib` from the stdlib.
 - Raw HTML inside the Markdown body is left untouched (no sanitization — the frontmatter module doesn't touch the body content beyond splitting).
 - Unknown keys in frontmatter are silently ignored at parse time (natural stdlib TOML behaviour; validation lives in `loader`).
@@ -231,7 +250,13 @@ def parse(text: str) -> tuple[dict[str, Any], str]
 - No delimiter at all → empty dict, body equals full input.
 - First line is not `+++` but body contains `+++` later → empty dict, body equals full input (no frontmatter recognized).
 - First line is `+++`, no closing `+++` anywhere → `ValueError` (`pytest.raises(ValueError, match=...)`).
-- Valid frontmatter + body → dict parsed, body string preserved exactly (including any trailing newline behaviour you commit to).
+- Valid frontmatter + body → dict parsed, body string preserved exactly. Pin the trailing-newline rule with this assertion:
+  ```python
+  def test_body_preserves_trailing_newline() -> None:
+      text = "+++\ntitle = \"X\"\n+++\nHello\n"
+      fm, body = parse(text)
+      assert body == "Hello\n"
+  ```
 - Empty frontmatter block (`+++\n+++\n<body>`) → empty dict, body returned.
 - Body that itself contains `+++` lines after the closing delimiter is **not** re-split — only the first opening + first closing count.
 - Body preserved verbatim including leading whitespace and embedded HTML.
@@ -296,6 +321,7 @@ def load_config(root_dir: Path) -> Config
 ```
 
 **Key rules (from SPEC §Configuration).**
+- Resolve `root_dir` to an absolute path at the top of `load_config` (`root_dir = root_dir.resolve()`) so log lines and error messages don't display a literal `.` when the CLI is invoked without a `DIR` argument.
 - File location: `<root_dir>/sitegen3.toml`. Missing file → `ConfigError`.
 - `[site]` table:
   - `title` (string, **required**) → `Config.site_title`. Missing → `ConfigError`.
@@ -357,11 +383,11 @@ from jinja2 import Environment, PackageLoader, select_autoescape
 
 _env = Environment(
     loader=PackageLoader("sitegen3", "templates"),
-    autoescape=select_autoescape(enabled_extensions=("html", "j2", "html.j2")),
+    autoescape=select_autoescape(enabled_extensions=("html", "html.j2")),
 )
 ```
 
-The explicit `enabled_extensions` list is **required** because Jinja's default autoescape only covers `.html`/`.htm`, and our templates use the compound `.html.j2` suffix. Without the override, every template would render unescaped — a latent XSS-class bug.
+The explicit `enabled_extensions` list is **required** because Jinja's default autoescape only covers `.html`/`.htm`, and our templates use the compound `.html.j2` suffix. Without the override, every template would render unescaped — a latent XSS-class bug. The list is restricted to `("html", "html.j2")` rather than including a bare `"j2"`: that would autoescape any `.j2` file, including a hypothetical `email.txt.j2` where autoescape would mangle output.
 
 Provide a single render function. Wrap `jinja2.TemplateError` as `RenderError` so callers never need to import `jinja2` for error handling.
 
@@ -391,9 +417,9 @@ Templates use `base.html.j2` via `{% extends %}`. The render context is a plain 
 | Page | `active` | `page_title` |
 |---|---|---|
 | About (`/`) | `"about"` | `site_title` |
-| Post listing (`/posts/`) | `"posts"` | `f"Posts — {site_title}"` |
+| Post listing (`/posts/`) | `"posts"` | `f"posts — {site_title}"` |
 | Post detail (`/posts/<slug>/`) | `"posts"` | `f"{post.title} — {site_title}"` |
-| Project listing (`/projects/`) | `"projects"` | `f"Projects — {site_title}"` |
+| Project listing (`/projects/`) | `"projects"` | `f"projects — {site_title}"` |
 | Project detail (`/projects/<slug>/`) | `"projects"` | `f"{project.title} — {site_title}"` |
 
 **Per-template context.**
@@ -406,7 +432,80 @@ Templates use `base.html.j2` via `{% extends %}`. The render context is a plain 
 | `projects.html.j2` | `projects: list[Project]` (already sorted, drafts filtered) | `/projects/` |
 | `project.html.j2` | `project: Project` | `/projects/<slug>/` |
 
+**Per-template link rule.** Each entry on the listing pages links to the corresponding detail URL: post entries to `/posts/{{ post.slug }}/`, project entries to `/projects/{{ project.slug }}/`. Both leading and trailing slashes are required (matches `writer.write_page`'s URL-path contract).
+
 **Escape contract.** `body_html` (About, Post, Project) is **pre-rendered HTML** from `markdown_renderer.render`. It must be piped through `|safe` in the templates: `{{ body_html | safe }}`. Every other context value goes through autoescape normally. Any omission of `|safe` on `body_html` breaks Markdown rendering; any `|safe` elsewhere is an XSS risk.
+
+### Per-template structural skeleton
+
+The design files are mock content; the templates must mirror their wrapper element structure and class names so the existing CSS selectors land on real pages. For each of the five child templates, emit at minimum this skeleton inside the `content` block (Jinja loops and conditionals are implicit — fill in real iteration where you see `…`):
+
+- **`about.html.j2`** — `<section>` wrapping the rendered body and the links list:
+  ```html
+  <section>
+    {{ body_html | safe }}
+    {% if links %}
+    <ul class="links">
+      {% for link in links %}<li><a href="{{ link.url }}">{{ link.label }}</a></li>{% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+  ```
+- **`posts.html.j2`** — `<h1>posts</h1>` followed by `<ul class="post-list">`:
+  ```html
+  <h1>posts</h1>
+  <ul class="post-list">
+    {% for post in posts %}
+    <li>
+      <span class="date">{{ post.created_at.isoformat() }}</span>
+      <a href="/posts/{{ post.slug }}/">{{ post.title }}</a>
+    </li>
+    {% endfor %}
+  </ul>
+  ```
+- **`post.html.j2`** — `<article>` with header / body / back-link footer:
+  ```html
+  <article>
+    <header class="post-header">
+      <span class="date">{{ post.created_at.isoformat() }}</span>
+      {% if post.updated_at %}<span class="updated">updated {{ post.updated_at.isoformat() }}</span>{% endif %}
+      <h1>{{ post.title }}</h1>
+    </header>
+    <div class="post-body">{{ post.body_html | safe }}</div>
+    <footer class="post-footer"><a href="/posts/">← back to posts</a></footer>
+  </article>
+  ```
+- **`projects.html.j2`** — `<h1>projects</h1>` followed by one `<div class="project">` per project:
+  ```html
+  <h1>projects</h1>
+  {% for project in projects %}
+  <div class="project">
+    <h3><a href="/projects/{{ project.slug }}/">{{ project.title }}</a></h3>
+    <p>{{ project.description }}</p>
+    {% if project.tags %}<span class="tags">{{ project.tags | join(" · ") }}</span>{% endif %}
+  </div>
+  {% endfor %}
+  ```
+- **`project.html.j2`** — `<article>` with header (tags + title + dates), `project-links`, body, back-link footer:
+  ```html
+  <article>
+    <header class="post-header">
+      {% if project.tags %}<span class="tags">{{ project.tags | join(" · ") }}</span>{% endif %}
+      <h1>{{ project.title }}</h1>
+      <span class="date">{{ project.created_at.isoformat() }}</span>
+      {% if project.updated_at %}<span class="updated">updated {{ project.updated_at.isoformat() }}</span>{% endif %}
+    </header>
+    {% if project.links %}
+    <div class="project-links">
+      {% for link in project.links %}<a href="{{ link.url }}">{{ link.label }}</a>{% if not loop.last %} · {% endif %}{% endfor %}
+    </div>
+    {% endif %}
+    <div class="post-body">{{ project.body_html | safe }}</div>
+    <footer class="post-footer"><a href="/projects/">← back to projects</a></footer>
+  </article>
+  ```
+
+These skeletons are the contract. The agent may add whitespace or attribute formatting freely, but the element types and class names must match — `style.css` selectors target them.
 
 ### Design reference
 
@@ -453,6 +552,13 @@ You **may** adjust or add CSS if the templates require it (e.g., new selectors o
 Minimum required test in `tests/test_templates.py`:
 
 ```python
+from datetime import date
+from pathlib import Path
+
+from sitegen3.models import Post
+from sitegen3.templates import render_template
+
+
 def test_escape_contract_body_safe_and_title_escaped() -> None:
     html = render_template("post.html.j2", context={
         "site_title": "My Site",
@@ -572,23 +678,28 @@ Required-field matrix (from SPEC §Frontmatter Format):
 
 Type validation: if a required field is present but the wrong type (e.g., `created_at = "2024-03-15"` as a **quoted string** rather than a bare TOML date), raise `LoaderError` — the string form becomes a `str`, not `datetime.date`, under `tomllib`, and would later crash date-based sort.
 
-When `links` is present (in `about.md` or in projects), each item must be a TOML table with both `label` (string) and `url` (string). Missing keys, wrong types, or non-table items → `LoaderError` naming the offending entry (e.g., `"projects/x.md: links[0] must be a table with 'label' and 'url' (string), got str"`).
+**Date strictness.** SPEC says `created_at` and `updated_at` are bare TOML dates (`YYYY-MM-DD`). `tomllib` parses bare `2024-03-15` as `datetime.date` and `2024-03-15T10:00:00` as `datetime.datetime`; since `datetime` is a subclass of `date`, a naive `isinstance(value, date)` check accepts both. Reject datetimes explicitly: use `type(value) is date` (or equivalently `isinstance(value, date) and not isinstance(value, datetime)`). A datetime in `created_at` raises `LoaderError("'created_at' must be a date (YYYY-MM-DD), got datetime")`.
 
-When `tags` is present (in projects), each item must be a string. Mixed-type or non-string items → `LoaderError` naming the offending entry (e.g., `"projects/x.md: tags[1] must be a string, got int"`).
+When `links` is present (in `about.md` or in projects), it must itself be a TOML array — `links = "not an array"` → `LoaderError("'links' must be an array of {label, url} tables, got str")`. Each item must be a TOML table with both `label` (string) and `url` (string). Missing keys, wrong types, or non-table items → `LoaderError` naming the offending entry (e.g., `"links[0] must be a table with 'label' and 'url' (string), got str"`).
+
+When `tags` is present (in projects), it must itself be a TOML array — `tags = "single"` → `LoaderError("'tags' must be an array of strings, got str")`. Each item must be a string. Mixed-type or non-string items → `LoaderError` naming the offending entry (e.g., `"tags[1] must be a string, got int"`).
 
 Unknown keys are ignored silently.
 
-All `LoaderError` messages should name the field and the expected type, e.g., `"posts/x.md: 'created_at' is required"` or `"posts/x.md: 'created_at' must be a date (YYYY-MM-DD), got str"`.
+All `LoaderError` messages should name the field and the expected type, e.g., `"'created_at' is required"` or `"'created_at' must be a date (YYYY-MM-DD), got str"`. Do **not** prefix with the source path — `build.py` already logs the path on skip (`log.warning("skipping %s: %s", path, e)`), and the loader doesn't have the input-dir context to compute a relative form anyway.
 
 **Tests (integration, `tmp_path`, real files).** Cover each loader:
 - Valid file → model with expected fields (including defaults applied where optional).
 - Malformed TOML in frontmatter → `LoaderError` (caused by `tomllib.TOMLDecodeError`).
 - Unterminated frontmatter → `LoaderError` (caused by `ValueError` from `frontmatter.parse`).
-- Missing required field → `LoaderError` naming the field.
-- Wrong type on required field (e.g., `created_at = "2024-03-15"`) → `LoaderError`.
+- Missing required field → `LoaderError` matching `r"'created_at' is required"` (no path prefix).
+- Wrong type on required field (e.g., `created_at = "2024-03-15"` as a quoted string) → `LoaderError`.
+- Datetime where a date is expected (`created_at = 2024-03-15T10:00:00`) → `LoaderError` matching `r"got datetime"`.
 - `draft: true` is honoured (the model's `draft` field is `True`; filtering happens in `build.py`, not here).
 - `About.links` parses to `list[Link]` (verify one round-trip).
+- `links` is the wrong top-level type (e.g., `links = "not an array"`) → `LoaderError` matching `r"'links' must be an array"`.
 - Malformed `links` entry (e.g., a string instead of a table, or a table missing `url`) → `LoaderError` naming the entry.
+- `tags` is the wrong top-level type (e.g., `tags = "single"`) → `LoaderError` matching `r"'tags' must be an array"`.
 - Malformed `tags` entry (e.g., `tags = [1, 2]` or `tags = ["ok", 3]`) → `LoaderError` naming the entry.
 - `Project.links`, `Project.tags` default to `[]` when absent.
 - `updated_at` is `None` when absent.
@@ -660,6 +771,8 @@ Use `caplog` fixture to assert `INFO` log messages on the "missing directory" br
 - `tests/fixtures/sample_site/sitegen3.toml`
 - `tests/fixtures/sample_site/content/about.md`
 - `tests/fixtures/sample_site/content/posts/hello-world.md`
+- `tests/fixtures/sample_site/content/posts/older-post.md` — earlier `created_at`, used to verify sort order
+- `tests/fixtures/sample_site/content/posts/draft-post.md` — `draft = true`, used to verify build-time draft filtering
 - `tests/fixtures/sample_site/content/posts/broken.md` — **intentionally malformed TOML**
 - `tests/fixtures/sample_site/content/projects/sample.md`
 - `tests/fixtures/sample_site/static/style.css`
@@ -690,30 +803,71 @@ def build(root_dir: Path) -> None
 14. `copy_static(root_dir, output_dir)`.
 15. Log summary: `INFO("build complete: rendered=%d skipped=%d", rendered, skipped)`.
 
+`rendered` counts every successful page write — increment once after each successful `write_page` call, including About (Step 9), each post detail (Step 10), the post listing (Step 11), each project detail (Step 12), and the project listing (Step 12). For the fixture site below, the expected count is 1 (about) + 1 (post listing) + 2 (hello-world + older-post detail; draft-post is filtered, not rendered) + 1 (project listing) + 1 (sample detail) = 6, with `skipped` = 1 from the broken post.
+
 Start-of-build `INFO` log: `INFO("building site: input=%s output=%s", input_dir, output_dir)`.
 
-**Context dict construction.** Each `render_template` call takes a plain `dict` built inline. Combine the common keys (Task 7 §Common context keys) with the per-template keys (Task 7 §Per-template context). Example for the post-detail render:
+**Context dict construction.** Each `render_template` call takes a plain `dict` built inline. The five contexts are:
 
 ```python
-ctx: dict[str, Any] = {
+about_ctx: dict[str, Any] = {
+    "site_title": config.site_title,
+    "site_footer": config.site_footer,
+    "active": "about",
+    "page_title": config.site_title,
+    "body_html": about.body_html,
+    "links": about.links,
+}
+about_html = render_template("about.html.j2", about_ctx)
+
+posts_listing_ctx: dict[str, Any] = {
+    "site_title": config.site_title,
+    "site_footer": config.site_footer,
+    "active": "posts",
+    "page_title": f"posts — {config.site_title}",
+    "posts": posts,                       # already sorted, drafts filtered
+}
+posts_listing_html = render_template("posts.html.j2", posts_listing_ctx)
+
+# Per post:
+post_ctx: dict[str, Any] = {
     "site_title": config.site_title,
     "site_footer": config.site_footer,
     "active": "posts",
     "page_title": f"{post.title} — {config.site_title}",
     "post": post,
 }
-html = render_template("post.html.j2", ctx)
-```
+post_html = render_template("post.html.j2", post_ctx)
 
-Build the other four contexts the same way, using the per-page values from Task 7's `active` / `page_title` table and adding the per-template extra (`body_html` + `links` for about, `posts` for the listing, `project` for project detail, `projects` for the project listing).
+projects_listing_ctx: dict[str, Any] = {
+    "site_title": config.site_title,
+    "site_footer": config.site_footer,
+    "active": "projects",
+    "page_title": f"projects — {config.site_title}",
+    "projects": projects,                 # already sorted, drafts filtered
+}
+projects_listing_html = render_template("projects.html.j2", projects_listing_ctx)
+
+# Per project:
+project_ctx: dict[str, Any] = {
+    "site_title": config.site_title,
+    "site_footer": config.site_footer,
+    "active": "projects",
+    "page_title": f"{project.title} — {config.site_title}",
+    "project": project,
+}
+project_html = render_template("project.html.j2", project_ctx)
+```
 
 **Fixture site contents.**
 
-Populate `tests/fixtures/sample_site/` with the minimum viable site plus one intentionally broken post to exercise per-page resilience. Exactly:
+Populate `tests/fixtures/sample_site/` with the minimum viable site plus one intentionally broken post (resilience), one draft (filtering), and a second valid post (sort order). Exactly:
 
-- `sitegen3.toml` — `[site] title = "Fixture Site"`, `footer = "test footer"`, `[paths]` default (input `content`, output `public`).
+- `sitegen3.toml` — `[site] title = "Fixture Site"`, `footer = "test footer"`. **Omit the `[paths]` table entirely** so the build also exercises `config.py`'s default-paths branch end-to-end.
 - `content/about.md` — valid frontmatter with one link; a one-paragraph body.
-- `content/posts/hello-world.md` — valid post with title, created_at, a short body.
+- `content/posts/hello-world.md` — valid post with `title = "Hello World"`, `created_at = 2026-03-15`, a short body.
+- `content/posts/older-post.md` — valid post with `title = "Older Post"`, `created_at = 2025-01-01` (must sort *after* `hello-world` because newest-first).
+- `content/posts/draft-post.md` — valid frontmatter plus `draft = true` (`title`, `created_at` whatever; the body is irrelevant since the post is filtered before rendering).
 - `content/posts/broken.md` — malformed TOML (e.g., unterminated string, or `created_at = not a date`). This must produce a `LoaderError` at load time, exercising the resilience path.
 - `content/projects/sample.md` — valid project with title, description, created_at, one tag, one link, a short body.
 - `static/style.css` — can be a one-line placeholder (`/* fixture */`) or a copy of the scaffold stylesheet. The test verifies it gets copied; it doesn't verify content.
@@ -724,12 +878,15 @@ Populate `tests/fixtures/sample_site/` with the minimum viable site plus one int
    - `public/index.html` exists.
    - `public/posts/index.html` exists.
    - `public/posts/hello-world/index.html` exists.
-   - `public/posts/broken/` does **not** exist (the broken post was skipped).
+   - `public/posts/older-post/index.html` exists.
+   - `public/posts/draft-post/` does **not** exist (filtered by `draft = true`).
+   - `public/posts/broken/` does **not** exist (skipped by the resilience path).
    - `public/projects/index.html` exists.
    - `public/projects/sample/index.html` exists.
    - `public/style.css` exists.
+   - In the post-listing HTML (`public/posts/index.html`), the substring `hello-world` appears **before** `older-post` (newest-first sort). Read the file, find both substrings with `.find()`, assert `hello_idx < older_idx`.
 2. `test_build_resilience_broken_post_logs_warning_and_continues`: using `caplog`, confirm a `WARNING`-level record whose message names `broken.md` was emitted, and that the overall build succeeded (no raised exception).
-3. `test_build_slug_collision_is_fatal`: add `Hello World.md` alongside `hello-world.md` (both slugify to `hello-world`, and the two filenames coexist on case-sensitive and case-insensitive filesystems). Expect `pytest.raises(DiscoveryError, match="...")` citing both paths.
+3. `test_build_slug_collision_is_fatal`: add `Hello World.md` alongside `hello-world.md` (both slugify to `hello-world`, and the two filenames coexist on case-sensitive and case-insensitive filesystems). Expect `pytest.raises(DiscoveryError, match="...")` citing both paths. Note: the collision check runs **after** all loads complete, so `broken.md`'s load failure does not affect this test — it operates on the surviving non-draft set (`hello-world.md`, `older-post.md`, `Hello World.md`).
 4. `test_build_missing_about_is_fatal`: remove `about.md` from the copied fixture, expect `DiscoveryError` (the fatal branch from `find_about`).
 
 Use `shutil.copytree` to copy the fixture tree into `tmp_path` at the start of each test — fixtures stay immutable on disk.
@@ -805,8 +962,8 @@ def init(root_dir: Path) -> None
 - `sitegen3.toml` — placeholder values: `[site] title = "My Site"`, `footer = "© 2026 My Name"`, `[paths] input = "content"`, `output = "public"`. The footer is a plain literal string — no template placeholders or runtime substitution. The user edits both `title` and `footer` after scaffolding.
 - `content/about.md` — frontmatter with one placeholder link, one-paragraph body.
 - `content/assets/.gitkeep` — empty file.
-- `content/posts/hello-world.md` — valid post frontmatter (`title`, `created_at`), short body.
-- `content/projects/sample-project.md` — valid project frontmatter (`title`, `description`, `created_at`, one tag, one link), short body.
+- `content/posts/hello-world.md` — valid post frontmatter (`title = "Hello World"`, `created_at = 2026-01-01`), short body. Pin the date to a fixed past value so `init` output is byte-stable across runs (using `today` would make the scaffold non-reproducible).
+- `content/projects/sample-project.md` — valid project frontmatter (`title = "Sample Project"`, `description`, `created_at = 2026-01-01`, one tag, one link), short body.
 
 **Implementation outline.**
 1. If `(root_dir / "sitegen3.toml").exists()` → `raise InitError(f"sitegen3.toml already exists in {root_dir}")`.
@@ -853,7 +1010,7 @@ Help strings: copy the summary sentences from SPEC per subcommand (the "Usage" b
 
 **`main()` flow.**
 1. `configure_logging()`.
-2. Build parser + subparsers.
+2. Build parser + subparsers. Construct the top-level parser with `argparse.ArgumentParser(prog="sitegen3", ...)` so `sitegen3 --help` renders `Usage: sitegen3 …` regardless of how `main` is invoked (including under `pytest`, where the default `prog` would be the test runner's name).
 3. `args = parser.parse_args()`.
 4. Dispatch based on `args.command` (or the `func` pattern with `subparser.set_defaults(func=...)`).
 5. Wrap the dispatch in `try/except SitegenError as e: logging.getLogger(__name__).error("%s", e); sys.exit(1)`.
