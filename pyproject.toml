@@ -3,6 +3,8 @@ name = "sitegen3"
 version = "0.1.0"
 description = "Static site generator for personal websites."
 authors = [{ name = "Santiago Acquarone" }]
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.12"
 readme = "README.md"
 dependencies = [
