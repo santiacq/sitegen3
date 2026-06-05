@@ -4,7 +4,7 @@ A static site generator for a personal website. It takes structured Markdown con
 (an about page, posts, and projects), Jinja2 templates, and a TOML config, and
 produces a complete static HTML/CSS site.
 
-[acq.uy](https://acq.uy) is a site built with it.
+[acq.uy](https://acq.uy) is my personal site, built with it.
 
 ## Features
 
