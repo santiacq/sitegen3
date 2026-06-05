@@ -8,8 +8,8 @@ produces a complete static HTML/CSS site.
 
 ## Features
 
-- **Three section types** — an about page, posts (a blog), and projects (a portfolio),
-  each with listing and detail pages.
+- **Three section types** — an about page, posts, and projects, each with
+  listing and detail pages.
 - **TOML frontmatter** delimited by `+++`, with a Markdown body supporting fenced code
   blocks and tables.
 - **Drafts** — mark any post or project `draft = true` to exclude it from both its
@@ -45,24 +45,12 @@ cd sitegen3
 poetry install
 ```
 
-With Poetry the command lives inside the project's virtual environment, so run it in
-one of two ways. Either pass your site directory as an argument:
+With Poetry the command lives inside the project's virtual environment, so run it with
+`poetry run` from the repository, passing your site directory as an argument:
 
 ```bash
 poetry run sitegen3 build ~/my-site
 ```
-
-…or activate the environment once and then use `sitegen3` directly from anywhere:
-
-```bash
-eval $(poetry env activate)   # Poetry 2.x
-cd ~/my-site
-sitegen3 build .
-```
-
-> Running a bare `poetry run sitegen3` from inside your site directory will fail with
-> "could not find a pyproject.toml" — `poetry run` looks for *sitegen3's* project
-> file, not your site's. Use one of the two patterns above.
 
 ## Quickstart
 
@@ -154,7 +142,7 @@ the Markdown body.
 
 ```markdown
 +++
-[[links]]
+[[links]]                 # optional
 label = "GitHub"
 url = "https://github.com/yourname"
 +++
@@ -182,9 +170,11 @@ This is your first post.
 title = "Sample Project"
 description = "A short one-line description."
 created_at = 2026-01-01
-tags = ["example"]
+updated_at = 2026-01-15   # optional
+tags = ["example"]        # optional
+draft = false             # optional
 
-[[links]]
+[[links]]                 # optional
 label = "GitHub"
 url = "https://github.com/yourname/sample-project"
 +++
@@ -236,8 +226,8 @@ poetry run pytest               # tests
 ## How it was built
 
 The initial version of `sitegen3` was one-shotted using
-[Claude Code](https://claude.com/claude-code) — specified up front, then built by the
-agent in a single run with no manual intervention. There's a writeup of how it was
+Claude Code — specified up front, then built by the
+agent in a single run with no manual intervention. Here's a writeup of how it was
 done: [One-shotting a static site generator](https://acq.uy/posts/one-shotting-a-static-site-generator/).
 
 ## License
