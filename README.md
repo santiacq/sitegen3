@@ -6,21 +6,6 @@ produces a complete static HTML/CSS site.
 
 [acq.uy](https://acq.uy) is my personal site, built with it.
 
-## Features
-
-- **Three section types** — an about page, posts, and projects, each with
-  listing and detail pages.
-- **TOML frontmatter** delimited by `+++`, with a Markdown body supporting fenced code
-  blocks and tables.
-- **Drafts** — mark any post or project `draft = true` to exclude it from both its
-  page and the listings.
-- **Newest-first listings**, sorted by `created_at` (ties broken by slug).
-- **Per-page resilience** — a single broken file logs a warning and is skipped; the
-  rest of the site still builds.
-- **Zero-config defaults** — `content/` in, `public/` out, with `assets/` and
-  `static/` copied through as-is.
-- **Built-in preview server** for local development, using only the standard library.
-
 ## Requirements
 
 - Python 3.12+
