@@ -11,7 +11,27 @@ def test_render_fenced_code_block() -> None:
     html = render(text)
     assert "<pre>" in html
     assert "<code>" in html
-    assert "print('hi')" in html
+    assert "print(&#39;hi&#39;)" in html
+
+
+def test_render_fenced_code_block_with_language_is_highlighted() -> None:
+    text = "```python\ndef greet():\n    pass\n```"
+    html = render(text)
+    assert 'class="codehilite"' in html
+    assert '<span class="k">def</span>' in html
+
+
+def test_render_fenced_bash_block_is_highlighted() -> None:
+    text = '```bash\n# comment\necho "hi"\n```'
+    html = render(text)
+    assert 'class="codehilite"' in html
+    assert '<span class="c1"># comment</span>' in html
+
+
+def test_render_fenced_code_block_without_language_is_not_highlighted() -> None:
+    text = "```\ndef greet():\n    pass\n```"
+    html = render(text)
+    assert '<span class="k">' not in html
 
 
 def test_render_table() -> None:

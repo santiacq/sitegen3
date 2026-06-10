@@ -349,6 +349,65 @@ pre code {
   color: var(--fg);
 }
 
+/* ── syntax highlighting (Pygments / codehilite) ── */
+.codehilite .k, .codehilite .kc, .codehilite .kd, .codehilite .kn,
+.codehilite .kp, .codehilite .kr, .codehilite .kt,
+.codehilite .ow, .codehilite .nt {
+  color: var(--accent);
+}
+
+.codehilite .s, .codehilite .s1, .codehilite .s2, .codehilite .sa,
+.codehilite .sb, .codehilite .sc, .codehilite .sd, .codehilite .se,
+.codehilite .sh, .codehilite .si, .codehilite .sr, .codehilite .ss,
+.codehilite .sx, .codehilite .na {
+  color: #c9a26d;
+}
+
+.codehilite .c, .codehilite .c1, .codehilite .ch, .codehilite .cm,
+.codehilite .cp, .codehilite .cs {
+  color: var(--fg-dim);
+  font-style: italic;
+}
+
+.codehilite .m, .codehilite .mb, .codehilite .mf, .codehilite .mh,
+.codehilite .mi, .codehilite .mo, .codehilite .il {
+  color: #8aa3c9;
+}
+
+.codehilite .nf, .codehilite .nc, .codehilite .ne {
+  color: #e0e0e0;
+}
+
+.codehilite .nb, .codehilite .bp, .codehilite .nd {
+  color: #7dbab1;
+}
+
+.codehilite .nv, .codehilite .vc, .codehilite .vg, .codehilite .vi {
+  color: #b5a7d4;
+}
+
+.codehilite .o {
+  color: var(--fg);
+}
+
+.codehilite .gh {
+  color: var(--fg);
+  font-weight: 700;
+}
+
+.codehilite .gu {
+  color: var(--fg-dim);
+  font-weight: 700;
+}
+
+.codehilite .gs {
+  font-weight: 700;
+}
+
+.codehilite .ge {
+  font-style: italic;
+}
+
 /* ── project detail links ── */
 .project-links {
   margin-bottom: 2rem;
