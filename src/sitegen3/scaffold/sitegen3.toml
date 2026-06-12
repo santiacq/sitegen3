@@ -1,6 +1,7 @@
 [site]
 title = "My Site"
 footer = "© 2026 My Name"
+favicon = "/favicon.ico"
 
 [paths]
 input = "content"

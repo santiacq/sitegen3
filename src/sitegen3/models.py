@@ -7,6 +7,7 @@ from pathlib import Path
 class Config:
     site_title: str
     site_footer: str | None
+    site_favicon: str
     root_dir: Path
     input_dir: Path
     output_dir: Path

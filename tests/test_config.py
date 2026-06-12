@@ -17,6 +17,7 @@ def test_load_config_happy_path(tmp_path: Path) -> None:
 [site]
 title = "My Site"
 footer = "© 2026"
+favicon = "/icon.png"
 
 [paths]
 input = "src_content"
@@ -29,6 +30,7 @@ output = "out"
 
     assert config.site_title == "My Site"
     assert config.site_footer == "© 2026"
+    assert config.site_favicon == "/icon.png"
     assert config.root_dir == tmp_path.resolve()
     assert config.input_dir == (tmp_path / "src_content").resolve()
     assert config.output_dir == (tmp_path / "out").resolve()
@@ -50,6 +52,7 @@ title = "Defaults Site"
 
     assert config.site_title == "Defaults Site"
     assert config.site_footer is None
+    assert config.site_favicon == "/favicon.ico"
     assert config.input_dir == (tmp_path / "content").resolve()
     assert config.output_dir == (tmp_path / "public").resolve()
 
@@ -91,6 +94,21 @@ title = "X"
     )
 
     with pytest.raises(ConfigError, match="input directory does not exist"):
+        load_config(tmp_path)
+
+
+def test_load_config_favicon_must_be_string(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "sitegen3.toml",
+        """
+[site]
+title = "X"
+favicon = 42
+""",
+    )
+    (tmp_path / "content").mkdir()
+
+    with pytest.raises(ConfigError, match="site.favicon"):
         load_config(tmp_path)
 
 

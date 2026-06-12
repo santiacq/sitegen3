@@ -105,6 +105,7 @@ Configuration lives in `sitegen3.toml` at the site root:
 [site]
 title = "My Site"
 footer = "© 2026 My Name"
+favicon = "/favicon.ico"
 
 [paths]
 input = "content"
@@ -115,6 +116,7 @@ output = "public"
 |---|---|---|
 | `site.title` | Yes | Site name shown in the navigation bar |
 | `site.footer` | No | Footer text on every page; omitted entirely if unset |
+| `site.favicon` | No | Favicon URL linked on every page (default: `/favicon.ico`) |
 | `paths.input` | No | Content directory (default: `content`) |
 | `paths.output` | No | Output directory (default: `public`) |
 

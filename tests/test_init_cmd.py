@@ -16,6 +16,7 @@ def test_init_scaffolds_expected_tree(tmp_path: Path) -> None:
     assert (tmp_path / "content" / "projects" / "sample-project.md").is_file()
     assert (tmp_path / "content" / "assets").is_dir()
     assert (tmp_path / "static" / "style.css").is_file()
+    assert (tmp_path / "static" / "favicon.ico").is_file()
 
 
 def test_init_refuses_when_sitegen3_toml_already_exists(tmp_path: Path) -> None:
@@ -37,3 +38,4 @@ def test_init_then_build_succeeds(tmp_path: Path) -> None:
         tmp_path / "public" / "projects" / "sample-project" / "index.html"
     ).is_file()
     assert (tmp_path / "public" / "style.css").is_file()
+    assert (tmp_path / "public" / "favicon.ico").is_file()

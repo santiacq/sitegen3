@@ -61,6 +61,7 @@ def build(root_dir: Path) -> None:
     about_ctx: dict[str, Any] = {
         "site_title": config.site_title,
         "site_footer": config.site_footer,
+        "favicon": config.site_favicon,
         "active": "about",
         "page_title": config.site_title,
         "body_html": about.body_html,
@@ -75,6 +76,7 @@ def build(root_dir: Path) -> None:
             post_ctx: dict[str, Any] = {
                 "site_title": config.site_title,
                 "site_footer": config.site_footer,
+                "favicon": config.site_favicon,
                 "active": "posts",
                 "page_title": f"{post.title} — {config.site_title}",
                 "post": post,
@@ -91,6 +93,7 @@ def build(root_dir: Path) -> None:
     posts_listing_ctx: dict[str, Any] = {
         "site_title": config.site_title,
         "site_footer": config.site_footer,
+        "favicon": config.site_favicon,
         "active": "posts",
         "page_title": f"posts — {config.site_title}",
         "posts": posts,
@@ -104,6 +107,7 @@ def build(root_dir: Path) -> None:
             project_ctx: dict[str, Any] = {
                 "site_title": config.site_title,
                 "site_footer": config.site_footer,
+                "favicon": config.site_favicon,
                 "active": "projects",
                 "page_title": f"{project.title} — {config.site_title}",
                 "project": project,
@@ -124,6 +128,7 @@ def build(root_dir: Path) -> None:
     projects_listing_ctx: dict[str, Any] = {
         "site_title": config.site_title,
         "site_footer": config.site_footer,
+        "favicon": config.site_favicon,
         "active": "projects",
         "page_title": f"projects — {config.site_title}",
         "projects": projects,

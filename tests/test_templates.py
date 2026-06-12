@@ -68,6 +68,22 @@ def test_base_renders_footer_when_site_footer_set() -> None:
     assert "© 2026" in html
 
 
+def test_base_renders_favicon_link() -> None:
+    html = render_template(
+        "about.html.j2",
+        context={
+            "site_title": "My Site",
+            "site_footer": None,
+            "favicon": "/icon.png",
+            "active": "about",
+            "page_title": "My Site",
+            "body_html": "<p>hi</p>",
+            "links": [],
+        },
+    )
+    assert '<link rel="icon" href="/icon.png">' in html
+
+
 def test_about_renders_links_list() -> None:
     html = render_template(
         "about.html.j2",
