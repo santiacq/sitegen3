@@ -84,6 +84,40 @@ def test_base_renders_favicon_link() -> None:
     assert '<link rel="icon" href="/icon.png">' in html
 
 
+def test_base_renders_meta_description_when_set() -> None:
+    html = render_template(
+        "about.html.j2",
+        context={
+            "site_title": "My Site",
+            "site_footer": None,
+            "favicon": "/favicon.ico",
+            "meta_description": "A site about things.",
+            "active": "about",
+            "page_title": "My Site",
+            "body_html": "<p>hi</p>",
+            "links": [],
+        },
+    )
+    assert '<meta name="description" content="A site about things.">' in html
+
+
+def test_base_omits_meta_description_when_unset() -> None:
+    html = render_template(
+        "about.html.j2",
+        context={
+            "site_title": "My Site",
+            "site_footer": None,
+            "favicon": "/favicon.ico",
+            "meta_description": None,
+            "active": "about",
+            "page_title": "My Site",
+            "body_html": "<p>hi</p>",
+            "links": [],
+        },
+    )
+    assert 'name="description"' not in html
+
+
 def test_about_renders_links_list() -> None:
     html = render_template(
         "about.html.j2",

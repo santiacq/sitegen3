@@ -18,6 +18,7 @@ def test_load_config_happy_path(tmp_path: Path) -> None:
 title = "My Site"
 footer = "© 2026"
 favicon = "/icon.png"
+description = "A site about things."
 
 [paths]
 input = "src_content"
@@ -31,6 +32,7 @@ output = "out"
     assert config.site_title == "My Site"
     assert config.site_footer == "© 2026"
     assert config.site_favicon == "/icon.png"
+    assert config.site_description == "A site about things."
     assert config.root_dir == tmp_path.resolve()
     assert config.input_dir == (tmp_path / "src_content").resolve()
     assert config.output_dir == (tmp_path / "out").resolve()
@@ -53,6 +55,7 @@ title = "Defaults Site"
     assert config.site_title == "Defaults Site"
     assert config.site_footer is None
     assert config.site_favicon == "/favicon.ico"
+    assert config.site_description is None
     assert config.input_dir == (tmp_path / "content").resolve()
     assert config.output_dir == (tmp_path / "public").resolve()
 
@@ -109,6 +112,21 @@ favicon = 42
     (tmp_path / "content").mkdir()
 
     with pytest.raises(ConfigError, match="site.favicon"):
+        load_config(tmp_path)
+
+
+def test_load_config_description_must_be_string(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "sitegen3.toml",
+        """
+[site]
+title = "X"
+description = 42
+""",
+    )
+    (tmp_path / "content").mkdir()
+
+    with pytest.raises(ConfigError, match="site.description"):
         load_config(tmp_path)
 
 

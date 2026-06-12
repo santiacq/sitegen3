@@ -106,6 +106,7 @@ Configuration lives in `sitegen3.toml` at the site root:
 title = "My Site"
 footer = "© 2026 My Name"
 favicon = "/favicon.ico"
+description = "A short sentence describing your site for search engines."
 
 [paths]
 input = "content"
@@ -117,6 +118,7 @@ output = "public"
 | `site.title` | Yes | Site name shown in the navigation bar |
 | `site.footer` | No | Footer text on every page; omitted entirely if unset |
 | `site.favicon` | No | Favicon URL linked on every page (default: `/favicon.ico`) |
+| `site.description` | No | `<meta name="description">` for search engines; omitted if unset; project pages use their own description |
 | `paths.input` | No | Content directory (default: `content`) |
 | `paths.output` | No | Output directory (default: `public`) |
 

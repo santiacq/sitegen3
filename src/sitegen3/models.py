@@ -8,6 +8,7 @@ class Config:
     site_title: str
     site_footer: str | None
     site_favicon: str
+    site_description: str | None
     root_dir: Path
     input_dir: Path
     output_dir: Path

@@ -2,6 +2,7 @@
 title = "My Site"
 footer = "© 2026 My Name"
 favicon = "/favicon.ico"
+description = "A short sentence describing your site for search engines."
 
 [paths]
 input = "content"

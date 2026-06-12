@@ -37,6 +37,11 @@ def load_config(root_dir: Path) -> Config:
         raise ConfigError("'site.favicon' must be a string if present")
     site_favicon: str = favicon_raw
 
+    description_raw: Any = site.get("description")
+    if description_raw is not None and not isinstance(description_raw, str):
+        raise ConfigError("'site.description' must be a string if present")
+    site_description: str | None = description_raw
+
     paths_raw: Any = data.get("paths", {})
     if not isinstance(paths_raw, dict):
         raise ConfigError("[paths] must be a table if present")
@@ -59,6 +64,7 @@ def load_config(root_dir: Path) -> Config:
         site_title=title,
         site_footer=site_footer,
         site_favicon=site_favicon,
+        site_description=site_description,
         root_dir=root_dir,
         input_dir=input_dir,
         output_dir=output_dir,
